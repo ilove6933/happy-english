@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Volume2, Home, Settings, CheckCircle, XCircle, ShoppingBag, 
   Trophy, Ghost, RefreshCw, Crown, Leaf, Trees, Gift, 
-  Car, Plane, Rocket, Star, ArrowLeft
+  Car, Plane, Rocket, Star, ArrowLeft, Move, Trash2, Plus
 } from 'lucide-react';
 
-// --- 1. A-Z 資料庫 (包含所有新增單字) ---
+// --- 1. A-Z 資料庫 (大幅擴充至約 500 字) ---
+// 為了版面整潔，這裡進行了大量擴充，涵蓋更多生活單字
 const RAW_VOCAB = {
   A: [
     { t: 'Apple', tr: '蘋果', b: 'ㄆㄧㄥˊ ㄍㄨㄛˇ', e: '🍎', s: 'I eat a red ___.', st: '我吃紅蘋果。', l: 1 },
@@ -18,6 +19,14 @@ const RAW_VOCAB = {
     { t: 'Art', tr: '藝術', b: 'ㄧˋ ㄕㄨˋ', e: '🎨', s: 'I like making ___.', st: '我喜歡創作藝術。', l: 2 },
     { t: 'Arm', tr: '手臂', b: 'ㄕㄡˇ ㄅㄧˋ', e: '💪', s: 'This is my strong ___.', st: '這是我的強壯手臂。', l: 1 },
     { t: 'Arrow', tr: '箭頭', b: 'ㄐㄧㄢˋ ㄊㄡˊ', e: '➡️', s: 'Follow the ___.', st: '跟著箭頭走。', l: 2 },
+    { t: 'Avocado', tr: '酪梨', b: 'ㄌㄨㄛˋ ㄌㄧˊ', e: '🥑', s: 'Green yummy ___.', st: '綠色好吃的酪梨。', l: 3 },
+    { t: 'Alarm', tr: '鬧鐘', b: 'ㄋㄠˋ ㄓㄨㄥ', e: '⏰', s: 'The ___ rings.', st: '鬧鐘響了。', l: 3 },
+    { t: 'Alien', tr: '外星人', b: 'ㄨㄞˋ ㄒㄧㄥ ㄖㄣˊ', e: '👽', s: 'Green ___ from space.', st: '來自太空的綠色外星人。', l: 2 },
+    { t: 'Anchor', tr: '船錨', b: 'ㄔㄨㄢˊ ㄇㄠáo', e: '⚓', s: 'Drop the ___.', st: '拋下船錨。', l: 4 },
+    { t: 'Acorn', tr: '橡實', b: 'ㄒㄧㄤˋ ㄕˊ', e: '🌰', s: 'Squirrel eats ___.', st: '松鼠吃橡實。', l: 3 },
+    { t: 'Axe', tr: '斧頭', b: 'ㄈㄨˇ ㄊㄡˊ', e: '🪓', s: 'Chop wood with ___.', st: '用斧頭砍木頭。', l: 3 },
+    { t: 'Apron', tr: '圍裙', b: 'ㄨㄟˊ ㄑㄩㄣˊ', e: '🎽', s: 'Mom wears an ___.', st: '媽媽穿圍裙。', l: 3 },
+    { t: 'Aquarium', tr: '水族館', b: 'ㄕㄨㄟˇ ㄗㄨˊ ㄍㄨㄢˇ', e: '🐠', s: 'Fish in the ___.', st: '魚在水族館裡。', l: 4 },
   ],
   B: [
     { t: 'Ball', tr: '球', b: 'ㄑㄧㄡˊ', e: '⚽', s: 'Kick the ___.', st: '踢球。', l: 1 },
@@ -37,9 +46,14 @@ const RAW_VOCAB = {
     { t: 'Blue', tr: '藍色', b: 'ㄌㄢˊ ㄙㄜˋ', e: '🔵', s: 'The sky is ___.', st: '天空是藍色的。', l: 2 },
     { t: 'Brown', tr: '棕色', b: 'ㄗㄨㄥ ㄙㄜˋ', e: '🟤', s: 'A ___ bear.', st: '一隻棕色的熊。', l: 2 },
     { t: 'Black', tr: '黑色', b: 'ㄏㄟ ㄙㄜˋ', e: '⚫', s: 'A ___ cat.', st: '一隻黑貓。', l: 2 },
-    { t: 'Brother', tr: '兄弟', b: 'ㄒㄩㄥ ㄉㄧˋ', e: '👦', s: 'He is my ___.', st: '他是我的兄弟。', l: 4 },
-    { t: 'Bedroom', tr: '臥室', b: 'ㄨㄛˋ ㄕˋ', e: '🛏️', s: 'Sleep in the ___.', st: '在臥室睡覺。', l: 5 },
-    { t: 'Bathroom', tr: '浴室', b: 'ㄩˋ ㄕˋ', e: '🛁', s: 'Wash in the ___.', st: '在浴室洗澡。', l: 5 },
+    { t: 'Bed', tr: '床', b: 'ㄔㄨㄤˊ', e: '🛏️', s: 'Sleep in ___.', st: '在床上睡覺。', l: 1 },
+    { t: 'Bat', tr: '蝙蝠', b: 'ㄅㄧㄢ ㄈㄨˊ', e: '🦇', s: '___ flies at night.', st: '蝙蝠在夜裡飛。', l: 2 },
+    { t: 'Bell', tr: '鈴鐺', b: 'ㄌㄧㄥˊ ㄉㄤ', e: '🔔', s: 'Ring the ___.', st: '搖鈴鐺。', l: 2 },
+    { t: 'Bone', tr: '骨頭', b: 'ㄍㄨˇ ㄊㄡ˙', e: '🦴', s: 'Dog eats a ___.', st: '狗狗吃骨頭。', l: 2 },
+    { t: 'Boot', tr: '靴子', b: 'ㄒㄩㄝ ㄗ˙', e: '👢', s: 'Wear a ___.', st: '穿靴子。', l: 2 },
+    { t: 'Box', tr: '盒子', b: 'ㄏㄜˊ ㄗ˙', e: '📦', s: 'Open the ___.', st: '打開盒子。', l: 1 },
+    { t: 'Bridge', tr: '橋', b: 'ㄑㄧㄠˊ', e: '🌉', s: 'Cross the ___.', st: '過橋。', l: 3 },
+    { t: 'Brush', tr: '刷子', b: 'ㄕㄨㄚ ㄗ˙', e: '🖌️', s: 'Paint with a ___.', st: '用刷子畫畫。', l: 3 },
   ],
   C: [
     { t: 'Cat', tr: '貓', b: 'ㄇㄠ', e: '🐱', s: 'The ___ says meow.', st: '貓咪喵喵叫。', l: 1 },
@@ -61,6 +75,13 @@ const RAW_VOCAB = {
     { t: 'Cold', tr: '冷', b: 'ㄌㄥˇ', e: '❄️', s: 'Ice is ___.', st: '冰塊很冷。', l: 2 },
     { t: 'Cherry', tr: '櫻桃', b: 'ㄧㄥ ㄊㄠˊ', e: '🍒', s: 'Red sweet ___.', st: '紅紅甜甜的櫻桃。', l: 4 },
     { t: 'Circle', tr: '圓形', b: 'ㄩㄢˊ ㄒㄧㄥˊ', e: '⭕', s: 'Draw a ___.', st: '畫一個圓形。', l: 4 },
+    { t: 'Crab', tr: '螃蟹', b: 'ㄆㄤˊ ㄒㄧㄝˋ', e: '🦀', s: 'Red ___ on beach.', st: '海灘上的紅螃蟹。', l: 2 },
+    { t: 'Corn', tr: '玉米', b: 'ㄩˋ ㄇㄧˇ', e: '🌽', s: 'Yellow ___.', st: '黃色玉米。', l: 2 },
+    { t: 'Carrot', tr: '胡蘿蔔', b: 'ㄏㄨˊ ㄌㄨㄛˊ ㄅㄛ˙', e: '🥕', s: 'Rabbit eats ___.', st: '兔子吃胡蘿蔔。', l: 2 },
+    { t: 'Computer', tr: '電腦', b: 'ㄉㄧㄢˋ ㄋㄠˇ', e: '💻', s: 'Use the ___.', st: '使用電腦。', l: 3 },
+    { t: 'Chef', tr: '廚師', b: 'ㄔㄨˊ ㄕ', e: '👨‍🍳', s: 'The ___ cooks.', st: '廚師做菜。', l: 3 },
+    { t: 'Crown', tr: '皇冠', b: 'ㄏㄨㄤˊ ㄍㄨㄢ', e: '👑', s: 'Gold ___.', st: '金色皇冠。', l: 2 },
+    { t: 'Camel', tr: '駱駝', b: 'ㄌㄨㄛˋ ㄊㄨㄛˊ', e: '🐪', s: 'Desert ___.', st: '沙漠駱駝。', l: 3 },
   ],
   D: [
     { t: 'Dog', tr: '狗', b: 'ㄍㄡˇ', e: '🐶', s: 'Good boy ___.', st: '乖狗狗。', l: 1 },
@@ -77,6 +98,12 @@ const RAW_VOCAB = {
     { t: 'Dress', tr: '洋裝', b: 'ㄧㄤˊ ㄓㄨㄤ', e: '👗', s: 'Wear a pretty ___.', st: '穿漂亮的洋裝。', l: 1 },
     { t: 'Drink', tr: '喝', b: 'ㄏㄜ', e: '🥤', s: '___ some water.', st: '喝點水。', l: 1 },
     { t: 'Diamond', tr: '鑽石', b: 'ㄗㄨㄢˋ ㄕˊ', e: '💎', s: 'Shiny ___.', st: '閃亮鑽石。', l: 2 },
+    { t: 'Dolphin', tr: '海豚', b: 'ㄏㄞˇ ㄊㄨㄣˊ', e: '🐬', s: 'Jump ___ jump.', st: '跳吧海豚。', l: 2 },
+    { t: 'Deer', tr: '鹿', b: 'ㄌㄨˋ', e: '🦌', s: 'Forest ___.', st: '森林裡的鹿。', l: 2 },
+    { t: 'Donkey', tr: '驢子', b: 'ㄌㄩˊ ㄗ˙', e: '🫏', s: 'The ___ walks.', st: '驢子走路。', l: 3 },
+    { t: 'Dice', tr: '骰子', b: 'ㄕㄞˇ ㄗ˙', e: '🎲', s: 'Roll the ___.', st: '擲骰子。', l: 3 },
+    { t: 'Dish', tr: '盤子', b: 'ㄆㄢˊ ㄗ˙', e: '🍽️', s: 'Clean the ___.', st: '洗盤子。', l: 2 },
+    { t: 'Dance', tr: '跳舞', b: 'ㄊㄧㄠˋ ㄨˇ', e: '💃', s: 'Let\'s ___.', st: '我們跳舞吧。', l: 2 },
   ],
   E: [
     { t: 'Elephant', tr: '大象', b: 'ㄉㄚˋ ㄒㄧㄤˋ', e: '🐘', s: 'The ___ has a long nose.', st: '大象有長鼻子。', l: 2 },
@@ -90,6 +117,11 @@ const RAW_VOCAB = {
     { t: 'Eraser', tr: '橡皮擦', b: 'ㄒㄧㄤˋ ㄆㄧˊ ㄘㄚ', e: '🧼', s: 'Use an ___ to clean.', st: '用橡皮擦擦乾淨。', l: 1 },
     { t: 'Engine', tr: '引擎', b: 'ㄧㄣˇ ㄑㄧㄥˊ', e: '🚂', s: 'The train ___.', st: '火車引擎。', l: 2 },
     { t: 'Elf', tr: '精靈', b: 'ㄐㄧㄥ ㄌㄧㄥˊ', e: '🧝', s: 'The magical ___.', st: '神奇的精靈。', l: 2 },
+    { t: 'Envelope', tr: '信封', b: 'ㄒㄧㄣˋ ㄈㄥ', e: '✉️', s: 'Mail the ___.', st: '寄出信封。', l: 3 },
+    { t: 'Eel', tr: '鰻魚', b: 'ㄇㄢˊ ㄩˊ', e: '🐍', s: 'Long ___.', st: '長長的鰻魚。', l: 3 },
+    { t: 'Eggplant', tr: '茄子', b: 'ㄑㄧㄝˊ ㄗ˙', e: '🍆', s: 'Purple ___.', st: '紫色茄子。', l: 3 },
+    { t: 'Elbow', tr: '手肘', b: 'ㄕㄡˇ ㄓㄡˇ', e: '💪', s: 'Bend your ___.', st: '彎曲你的手肘。', l: 3 },
+    { t: 'Exit', tr: '出口', b: 'ㄔㄨ ㄎㄡˇ', e: '🚪', s: 'Go to the ___.', st: '去出口。', l: 3 },
   ],
   F: [
     { t: 'Fish', tr: '魚', b: 'ㄩˊ', e: '🐟', s: 'Swim like a ___.', st: '像魚一樣游泳。', l: 1 },
@@ -104,6 +136,12 @@ const RAW_VOCAB = {
     { t: 'Feet', tr: '腳', b: 'ㄐㄧㄠˇ', e: '🦶', s: 'Stomp your ___.', st: '跺跺腳。', l: 2 },
     { t: 'Fruit', tr: '水果', b: 'ㄕㄨㄟˇ ㄍㄨㄛˇ', e: '🍇', s: 'Healthy ___.', st: '健康的水果。', l: 2 },
     { t: 'Fork', tr: '叉子', b: 'ㄔㄚ ㄗ˙', e: '🍴', s: 'Eat with a ___.', st: '用叉子吃。', l: 2 },
+    { t: 'Farmer', tr: '農夫', b: 'ㄋㄨㄥˊ ㄈㄨ', e: '🧑‍🌾', s: 'The ___ grows food.', st: '農夫種植食物。', l: 3 },
+    { t: 'Forest', tr: '森林', b: 'ㄙㄣ ㄌㄧㄣˊ', e: '🌲', s: 'Green ___.', st: '綠色森林。', l: 3 },
+    { t: 'Flag', tr: '旗子', b: 'ㄑㄧˊ ㄗ˙', e: '🏳️', s: 'Wave the ___.', st: '揮舞旗子。', l: 2 },
+    { t: 'Fries', tr: '薯條', b: 'ㄕㄨˇ ㄊㄧㄠˊ', e: '🍟', s: 'I like ___.', st: '我喜歡薯條。', l: 2 },
+    { t: 'Football', tr: '足球', b: 'ㄗㄨˊ ㄑㄧㄡˊ', e: '🏈', s: 'Throw the ___.', st: '丟足球。', l: 2 },
+    { t: 'Fly', tr: '蒼蠅', b: 'ㄘㄤ ㄧㄥ˙', e: '🪰', s: 'Shoo the ___.', st: '趕走蒼蠅。', l: 2 },
   ],
   G: [
     { t: 'Girl', tr: '女孩', b: 'ㄋㄩˇ ㄏㄞˊ', e: '👧', s: 'She is a happy ___.', st: '她是個快樂的女孩。', l: 1 },
@@ -116,6 +154,12 @@ const RAW_VOCAB = {
     { t: 'Grapes', tr: '葡萄', b: 'ㄆㄨˊ ㄊㄠˊ', e: '🍇', s: 'Purple ___.', st: '紫色葡萄。', l: 1 },
     { t: 'Ghost', tr: '鬼', b: 'ㄍㄨㄟˇ', e: '👻', s: 'Spooky ___.', st: '可怕的鬼。', l: 1 },
     { t: 'Guitar', tr: '吉他', b: 'ㄐㄧˊ ㄊㄚ', e: '🎸', s: 'Play the ___.', st: '彈吉他。', l: 2 },
+    { t: 'Gorilla', tr: '大猩猩', b: 'ㄉㄚˋ ㄒㄧㄥ ㄒㄧㄥ', e: '🦍', s: 'Big ___.', st: '大猩猩。', l: 3 },
+    { t: 'Garden', tr: '花園', b: 'ㄏㄨㄚ ㄩㄢˊ', e: '🏡', s: 'Flowers in the ___.', st: '花園裡的花。', l: 3 },
+    { t: 'Glasses', tr: '眼鏡', b: 'ㄧㄢˇ ㄐㄧㄥˋ', e: '👓', s: 'Wear ___.', st: '戴眼鏡。', l: 2 },
+    { t: 'Glue', tr: '膠水', b: 'ㄐㄧㄠ ㄕㄨㄟˇ', e: '🧴', s: 'Sticky ___.', st: '黏黏的膠水。', l: 2 },
+    { t: 'Glove', tr: '手套', b: 'ㄕㄡˇ ㄊㄠˋ', e: '🧤', s: 'Warm ___.', st: '溫暖手套。', l: 2 },
+    { t: 'Gold', tr: '黃金', b: 'ㄏㄨㄤˊ ㄐㄧㄣ', e: '🥇', s: 'Shiny ___.', st: '閃亮黃金。', l: 3 },
   ],
   H: [
     { t: 'Hat', tr: '帽子', b: 'ㄇㄠˋ ㄗ˙', e: '🧢', s: 'Wear a ___.', st: '戴帽子。', l: 1 },
@@ -130,6 +174,11 @@ const RAW_VOCAB = {
     { t: 'Helicopter', tr: '直升機', b: 'ㄓˊ ㄕㄥ ㄐㄧ', e: '🚁', s: 'Fly ___', st: '飛直升機。', l: 2 },
     { t: 'Hamburger', tr: '漢堡', b: 'ㄏㄢˋ ㄅㄠˇ', e: '🍔', s: 'Yummy ___.', st: '好吃的漢堡。', l: 2 },
     { t: 'Honey', tr: '蜂蜜', b: 'ㄈㄥ ㄇㄧˋ', e: '🍯', s: 'Sweet ___.', st: '甜甜的蜂蜜。', l: 2 },
+    { t: 'Hamster', tr: '倉鼠', b: 'ㄘㄤ ㄕㄨˇ', e: '🐹', s: 'Cute ___.', st: '可愛倉鼠。', l: 2 },
+    { t: 'Hedgehog', tr: '刺蝟', b: 'ㄘˋ ㄨㄟˋ', e: '🦔', s: 'Spiky ___.', st: '多刺的刺蝟。', l: 3 },
+    { t: 'Hammer', tr: '鐵鎚', b: 'ㄊㄧㄝˇ ㄔㄨㄟˊ', e: '🔨', s: 'Bang with ___.', st: '用鐵鎚敲。', l: 3 },
+    { t: 'Helmet', tr: '安全帽', b: 'ㄢ ㄑㄩㄢˊ ㄇㄠˋ', e: '⛑️', s: 'Wear a ___.', st: '戴安全帽。', l: 3 },
+    { t: 'Hospital', tr: '醫院', b: 'ㄧ ㄩㄢˋ', e: '🏥', s: 'Go to ___.', st: '去醫院。', l: 3 },
   ],
   I: [
     { t: 'Ice Cream', tr: '冰淇淋', b: 'ㄅㄧㄥ ㄑㄧˊ ㄌㄧㄣˊ', e: '🍦', s: 'Cold ___.', st: '冰涼的冰淇淋。', l: 2 },
@@ -142,6 +191,9 @@ const RAW_VOCAB = {
     { t: 'Idea', tr: '點子', b: 'ㄉㄧㄢˇ ㄗ˙', e: '💡', s: 'Good ___.', st: '好點子。', l: 2 },
     { t: 'Ivy', tr: '常春藤', b: 'ㄔㄤˊ ㄔㄨㄣ ㄊㄥˊ', e: '🌿', s: 'Green ___.', st: '綠色常春藤。', l: 2 },
     { t: 'Instrument', tr: '樂器', b: 'ㄩㄝˋ ㄑㄧˋ', e: '🎻', s: 'Play ___.', st: '演奏樂器。', l: 2 },
+    { t: 'Iguana', tr: '鬣蜥', b: 'ㄌㄧㄝˋ ㄒㄧ', e: '🦎', s: 'Green ___.', st: '綠色鬣蜥。', l: 3 },
+    { t: 'Internet', tr: '網路', b: 'ㄨㄤˇ ㄌㄨˋ', e: '🌐', s: 'Surf the ___.', st: '上網。', l: 3 },
+    { t: 'Invitation', tr: '邀請函', b: 'ㄧㄠ ㄑㄧㄥˇ ㄏㄢˊ', e: '💌', s: 'Send an ___.', st: '寄邀請函。', l: 3 },
   ],
   J: [
     { t: 'Juice', tr: '果汁', b: 'ㄍㄨㄛˇ ㄓ', e: '🧃', s: 'Drink ___.', st: '喝果汁。', l: 1 },
@@ -154,6 +206,9 @@ const RAW_VOCAB = {
     { t: 'Jungle', tr: '叢林', b: 'ㄘㄨㄥˊ ㄌㄧㄣˊ', e: '🌴', s: 'Green ___.', st: '綠色叢林。', l: 2 },
     { t: 'Jewel', tr: '寶石', b: 'ㄅㄠˇ ㄕˊ', e: '💎', s: 'Shiny ___.', st: '閃亮寶石。', l: 2 },
     { t: 'Jigsaw', tr: '拼圖', b: 'ㄆㄧㄣ ㄊㄨˊ', e: '🧩', s: 'Do a ___.', st: '玩拼圖。', l: 2 },
+    { t: 'Jam', tr: '果醬', b: 'ㄍㄨㄛˇ ㄐㄧㄤˋ', e: '🍓', s: 'Sweet ___.', st: '甜果醬。', l: 2 },
+    { t: 'Judge', tr: '法官', b: 'ㄈㄚˇ ㄍㄨㄢ', e: '⚖️', s: 'The ___ decides.', st: '法官裁決。', l: 3 },
+    { t: 'Juggler', tr: '雜耍者', b: 'ㄗㄚˊ ㄕㄨㄚˇ ㄓㄜˇ', e: '🤹', s: 'Funny ___.', st: '有趣的雜耍者。', l: 3 },
   ],
   K: [
     { t: 'Key', tr: '鑰匙', b: 'ㄧㄠˋ ㄕˇ', e: '🔑', s: 'Use a ___.', st: '用鑰匙。', l: 1 },
@@ -166,6 +221,9 @@ const RAW_VOCAB = {
     { t: 'Ketchup', tr: '番茄醬', b: 'ㄈㄢ ㄑㄧㄝˊ ㄐㄧㄤˋ', e: '🍅', s: 'Red ___.', st: '紅色番茄醬。', l: 2 },
     { t: 'Keyboard', tr: '鍵盤', b: 'ㄐㄧㄢˋ ㄆㄢˊ', e: '⌨️', s: 'Type on ___.', st: '在鍵盤打字。', l: 2 },
     { t: 'Knight', tr: '騎士', b: 'ㄑㄧˊ ㄕˋ', e: '⚔️', s: 'Brave ___.', st: '勇敢騎士。', l: 2 },
+    { t: 'Knee', tr: '膝蓋', b: 'ㄒㄧ ㄍㄞˋ', e: '🦵', s: 'Bend your ___.', st: '彎曲膝蓋。', l: 2 },
+    { t: 'Knife', tr: '刀子', b: 'ㄉㄠ ㄗ˙', e: '🔪', s: 'Sharp ___.', st: '鋒利的刀。', l: 2 },
+    { t: 'Kitten', tr: '小貓', b: 'ㄒㄧㄠˇ ㄇㄠ', e: '🐈', s: 'Cute ___.', st: '可愛小貓。', l: 2 },
   ],
   L: [
     { t: 'Leg', tr: '腿', b: 'ㄊㄨㄟˇ', e: '🦵', s: 'My ___.', st: '我的腿。', l: 1 },
@@ -179,6 +237,11 @@ const RAW_VOCAB = {
     { t: 'Laptop', tr: '筆電', b: 'ㄅㄧˇ ㄉㄧㄢˋ', e: '💻', s: 'Use ___.', st: '用筆電。', l: 2 },
     { t: 'Lock', tr: '鎖', b: 'ㄙㄨㄛˇ', e: '🔒', s: '___ the door.', st: '鎖門。', l: 2 },
     { t: 'Living room', tr: '客廳', b: 'ㄎㄜˋ ㄊㄧㄥ', e: '🛋️', s: 'Watch TV in the ___.', st: '在客廳看電視。', l: 5 },
+    { t: 'Lizard', tr: '蜥蜴', b: 'ㄒㄧ ㄧˋ', e: '🦎', s: 'Green ___.', st: '綠蜥蜴。', l: 3 },
+    { t: 'Lobster', tr: '龍蝦', b: 'ㄌㄨㄥˊ ㄒㄧㄚ', e: '🦞', s: 'Red ___.', st: '紅龍蝦。', l: 3 },
+    { t: 'Lips', tr: '嘴唇', b: 'ㄗㄨㄟˇ ㄔㄨㄣˊ', e: '👄', s: 'Red ___.', st: '紅嘴唇。', l: 2 },
+    { t: 'Letter', tr: '信', b: 'ㄒㄧㄣˋ', e: '✉️', s: 'Write a ___.', st: '寫一封信。', l: 2 },
+    { t: 'Light', tr: '光', b: 'ㄍㄨㄤ', e: '🔦', s: 'Turn on the ___.', st: '開燈。', l: 2 },
   ],
   M: [
     { t: 'Mom', tr: '媽媽', b: 'ㄇㄚ ㄇㄚ˙', e: '👩', s: 'I love ___.', st: '我愛媽媽。', l: 1 },
@@ -192,6 +255,12 @@ const RAW_VOCAB = {
     { t: 'Mountain', tr: '山', b: 'ㄕㄢ', e: '🏔️', s: 'High ___.', st: '高山。', l: 2 },
     { t: 'Music', tr: '音樂', b: 'ㄧㄣ ㄩㄝˋ', e: '🎵', s: 'Listen to ___.', st: '聽音樂。', l: 2 },
     { t: 'Mother', tr: '母親', b: 'ㄇㄨˇ ㄑㄧㄣ', e: '👩', s: 'I love my ___.', st: '我愛我的母親。', l: 3 },
+    { t: 'Mango', tr: '芒果', b: 'ㄇㄤˊ ㄍㄨㄛˇ', e: '🥭', s: 'Sweet ___.', st: '甜芒果。', l: 2 },
+    { t: 'Mushroom', tr: '蘑菇', b: 'ㄇㄛˊ ㄍㄨ', e: '🍄', s: 'Red ___.', st: '紅蘑菇。', l: 2 },
+    { t: 'Motorcycle', tr: '摩托車', b: 'ㄇㄛˊ ㄊㄨㄛ ㄔㄜ', e: '🏍️', s: 'Ride a ___.', st: '騎摩托車。', l: 3 },
+    { t: 'Magnet', tr: '磁鐵', b: 'ㄘˊ ㄊㄧㄝˇ', e: '🧲', s: 'Sticky ___.', st: '有磁力的磁鐵。', l: 3 },
+    { t: 'Mask', tr: '面具', b: 'ㄇㄧㄢˋ ㄐㄩˋ', e: '🎭', s: 'Wear a ___.', st: '戴面具。', l: 2 },
+    { t: 'Mirror', tr: '鏡子', b: 'ㄐㄧㄥˋ ㄗ˙', e: '🪞', s: 'Look in the ___.', st: '照鏡子。', l: 2 },
   ],
   N: [
     { t: 'Nose', tr: '鼻子', b: 'ㄅㄧˊ ㄗ˙', e: '👃', s: 'Touch your ___.', st: '摸摸鼻子。', l: 1 },
@@ -204,6 +273,10 @@ const RAW_VOCAB = {
     { t: 'Notebook', tr: '筆記本', b: 'ㄅㄧˇ ㄐㄧˋ ㄅㄣˇ', e: '📓', s: 'Write in ___.', st: '寫筆記。', l: 2 },
     { t: 'Newspaper', tr: '報紙', b: 'ㄅㄠˋ ㄓˇ', e: '📰', s: 'Read ___.', st: '看報紙。', l: 2 },
     { t: 'Noodles', tr: '麵條', b: 'ㄇㄧㄢˋ ㄊㄧㄠˊ', e: '🍜', s: 'Yummy ___.', st: '好吃麵條。', l: 2 },
+    { t: 'Net', tr: '網子', b: 'ㄨㄤˇ ㄗ˙', e: '🕸️', s: 'Catch with a ___.', st: '用網子抓。', l: 2 },
+    { t: 'Nail', tr: '釘子', b: 'ㄉㄧㄥ ㄗ˙', e: '🔩', s: 'Hammer the ___.', st: '敲釘子。', l: 3 },
+    { t: 'Narwhal', tr: '獨角鯨', b: 'ㄉㄨˊ ㄐㄧㄠˇ ㄐㄧㄥ', e: '🐋', s: 'Sea unicorn ___.', st: '海中獨角獸。', l: 3 },
+    { t: 'Needle', tr: '針', b: 'ㄓㄣ', e: '🪡', s: 'Sew with a ___.', st: '用針縫。', l: 3 },
   ],
   O: [
     { t: 'One', tr: '一', b: 'ㄧ', e: '1️⃣', s: 'Number ___.', st: '數字一。', l: 1 },
@@ -216,6 +289,10 @@ const RAW_VOCAB = {
     { t: 'Oil', tr: '油', b: 'ㄧㄡˊ', e: '🛢️', s: 'Cooking ___.', st: '食用油。', l: 2 },
     { t: 'Ostrich', tr: '鴕鳥', b: 'ㄊㄨㄛˊ ㄋㄧㄠˇ', e: '🐦', s: 'Run fast ___.', st: '跑很快的鴕鳥。', l: 2 },
     { t: 'Office', tr: '辦公室', b: 'ㄅㄢˋ ㄍㄨㄥ ㄕˋ', e: '🏢', s: 'Work at ___.', st: '在辦公室工作。', l: 2 },
+    { t: 'Otter', tr: '水獺', b: 'ㄕㄨㄟˇ ㄊㄚˋ', e: '🦦', s: 'Cute ___.', st: '可愛水獺。', l: 3 },
+    { t: 'Olive', tr: '橄欖', b: 'ㄍㄢˇ ㄌㄢˇ', e: '🫒', s: 'Green ___.', st: '綠橄欖。', l: 3 },
+    { t: 'Ox', tr: '公牛', b: 'ㄍㄨㄥ ㄋㄧㄡˊ', e: '🐂', s: 'Strong ___.', st: '強壯公牛。', l: 2 },
+    { t: 'Omelet', tr: '歐姆蛋', b: 'ㄡ ㄇㄨˇ ㄉㄢˋ', e: '🍳', s: 'Eat an ___.', st: '吃歐姆蛋。', l: 3 },
   ],
   P: [
     { t: 'Pig', tr: '豬', b: 'ㄓㄨ', e: '🐷', s: 'Pink ___.', st: '粉紅豬。', l: 1 },
@@ -232,6 +309,13 @@ const RAW_VOCAB = {
     { t: 'Penguin', tr: '企鵝', b: 'ㄑㄧˋ ㄜˊ', e: '🐧', s: 'Walking ___.', st: '走路的企鵝。', l: 2 },
     { t: 'Pink', tr: '粉紅色', b: 'ㄈㄣˇ ㄏㄨㄥˊ ㄙㄜˋ', e: '🩷', s: '___ flower.', st: '粉紅色的花。', l: 2 },
     { t: 'Pencil', tr: '鉛筆', b: 'ㄑㄧㄢ ㄅㄧˇ', e: '✏️', s: 'Write with a ___.', st: '用鉛筆寫字。', l: 4 },
+    { t: 'Peach', tr: '桃子', b: 'ㄊㄠˊ ㄗ˙', e: '🍑', s: 'Sweet ___.', st: '甜桃子。', l: 2 },
+    { t: 'Pear', tr: '梨子', b: 'ㄌㄧˊ ㄗ˙', e: '🍐', s: 'Juicy ___.', st: '多汁梨子。', l: 2 },
+    { t: 'Popcorn', tr: '爆米花', b: 'ㄅㄠˋ ㄇㄧˇ ㄏㄨㄚ', e: '🍿', s: 'Eat ___.', st: '吃爆米花。', l: 2 },
+    { t: 'Police', tr: '警察', b: 'ㄐㄧㄥˇ ㄔㄚˊ', e: '👮', s: 'Call the ___.', st: '叫警察。', l: 2 },
+    { t: 'Parrot', tr: '鸚鵡', b: 'ㄧㄥ ㄨˇ', e: '🦜', s: 'Colorful ___.', st: '彩色鸚鵡。', l: 3 },
+    { t: 'Peacock', tr: '孔雀', b: 'ㄎㄨㄥˇ ㄑㄩㄝˋ', e: '🦚', s: 'Beautiful ___.', st: '美麗孔雀。', l: 3 },
+    { t: 'Pineapple', tr: '鳳梨', b: 'ㄈㄥˋ ㄌㄧˊ', e: '🍍', s: 'Yellow ___.', st: '黃鳳梨。', l: 2 },
   ],
   Q: [
     { t: 'Queen', tr: '女王', b: 'ㄋㄩˇ ㄨㄤˊ', e: '👸', s: 'The ___ wears a crown.', st: '女王戴皇冠。', l: 1 },
@@ -244,6 +328,8 @@ const RAW_VOCAB = {
     { t: 'Quiz', tr: '測驗', b: 'ㄘㄜˋ ㄧㄢˋ', e: '📝', s: 'Take a ___.', st: '考試。', l: 2 },
     { t: 'Queue', tr: '排隊', b: 'ㄆㄞˊ ㄉㄨㄟˋ', e: '🚶', s: 'Wait in ___.', st: '排隊等待。', l: 2 },
     { t: 'Quartz', tr: '石英', b: 'ㄕˊ ㄧㄥ', e: '💎', s: 'Shiny ___.', st: '閃亮石英。', l: 2 },
+    { t: 'Quail', tr: '鵪鶉', b: 'ㄢ ㄔㄨㄣ', e: '🐦', s: 'Small ___.', st: '小鵪鶉。', l: 3 },
+    { t: 'Quill', tr: '羽毛筆', b: 'ㄩˇ ㄇㄠˊ ㄅㄧˇ', e: '✒️', s: 'Write with ___.', st: '用羽毛筆寫。', l: 3 },
   ],
   R: [
     { t: 'Red', tr: '紅色', b: 'ㄏㄨㄥˊ ㄙㄜˋ', e: '🔴', s: '___ apple.', st: '紅蘋果。', l: 1 },
@@ -257,6 +343,13 @@ const RAW_VOCAB = {
     { t: 'Rose', tr: '玫瑰', b: 'ㄇㄟˊ ㄍㄨㄟ', e: '🌹', s: 'Red ___.', st: '紅玫瑰。', l: 2 },
     { t: 'Radio', tr: '收音機', b: 'ㄕㄡ ㄧㄣ ㄐㄧ', e: '📻', s: 'Listen to ___.', st: '聽收音機。', l: 2 },
     { t: 'Rectangle', tr: '長方形', b: 'ㄔㄤˊ ㄈㄤ ㄒㄧㄥˊ', e: '▭', s: 'A door is a ___.', st: '門是長方形的。', l: 5 },
+    { t: 'Rat', tr: '大老鼠', b: 'ㄉㄚˋ ㄌㄠˇ ㄕㄨˇ', e: '🐀', s: 'Grey ___.', st: '灰色大老鼠。', l: 2 },
+    { t: 'Ring', tr: '戒指', b: 'ㄐㄧㄝˋ ㄓˇ', e: '💍', s: 'Gold ___.', st: '金戒指。', l: 2 },
+    { t: 'Ruler', tr: '尺', b: 'ㄔˇ', e: '📏', s: 'Measure with ___.', st: '用尺量。', l: 2 },
+    { t: 'Road', tr: '馬路', b: 'ㄇㄚˇ ㄌㄨˋ', e: '🛣️', s: 'Cross the ___.', st: '過馬路。', l: 2 },
+    { t: 'Rug', tr: '地毯', b: 'ㄉㄧˋ ㄊㄢˇ', e: '🧶', s: 'Soft ___.', st: '軟地毯。', l: 3 },
+    { t: 'Raccoon', tr: '浣熊', b: 'ㄏㄨㄢˇ ㄒㄩㄥˊ', e: '🦝', s: 'Sneaky ___.', st: '鬼鬼祟祟的浣熊。', l: 3 },
+    { t: 'Rhino', tr: '犀牛', b: 'ㄒㄧ ㄋㄧㄡˊ', e: '🦏', s: 'Big horn ___.', st: '大角犀牛。', l: 3 },
   ],
   S: [
     { t: 'Sun', tr: '太陽', b: 'ㄊㄞˋ ㄧㄤˊ', e: '☀️', s: 'Hot ___.', st: '熱太陽。', l: 1 },
@@ -277,6 +370,13 @@ const RAW_VOCAB = {
     { t: 'Shorts', tr: '短褲', b: 'ㄉㄨㄢˇ ㄎㄨˋ', e: '🩳', s: 'Wear ___.', st: '穿短褲。', l: 2 },
     { t: 'Square', tr: '正方形', b: 'ㄓㄥˋ ㄈㄤ ㄒㄧㄥˊ', e: '⬜', s: 'A box is ___.', st: '盒子是正方形。', l: 2 },
     { t: 'Stand', tr: '站立', b: 'ㄓㄢˋ ㄌㄧˋ', e: '🧍', s: 'Please ___ up.', st: '請站起來。', l: 3 },
+    { t: 'Shark', tr: '鯊魚', b: 'ㄕㄚ ㄩˊ', e: '🦈', s: 'Big teeth ___.', st: '大牙鯊魚。', l: 2 },
+    { t: 'Snail', tr: '蝸牛', b: 'ㄍㄨㄚ ㄋㄧㄡˊ', e: '🐌', s: 'Slow ___.', st: '慢蝸牛。', l: 2 },
+    { t: 'Sandwich', tr: '三明治', b: 'ㄙㄢ ㄇㄧㄥˊ ㄓˋ', e: '🥪', s: 'Yummy ___.', st: '好吃三明治。', l: 2 },
+    { t: 'Soup', tr: '湯', b: 'ㄊㄤ', e: '🥣', s: 'Hot ___.', st: '熱湯。', l: 2 },
+    { t: 'Salad', tr: '沙拉', b: 'ㄕㄚ ㄌㄚ', e: '🥗', s: 'Healthy ___.', st: '健康沙拉。', l: 2 },
+    { t: 'Scissors', tr: '剪刀', b: 'ㄐㄧㄢˇ ㄉㄠ', e: '✂️', s: 'Cut with ___.', st: '用剪刀剪。', l: 3 },
+    { t: 'Squirrel', tr: '松鼠', b: 'ㄙㄨㄥ ㄕㄨˇ', e: '🐿️', s: 'Climb tree ___.', st: '爬樹松鼠。', l: 2 },
   ],
   T: [
     { t: 'Tiger', tr: '老虎', b: 'ㄌㄠˇ ㄏㄨˇ', e: '🐯', s: 'Roar ___.', st: '老虎吼叫。', l: 1 },
@@ -293,6 +393,13 @@ const RAW_VOCAB = {
     { t: 'Teddy Bear', tr: '泰迪熊', b: 'ㄊㄞˋ ㄉㄧˊ ㄒㄩㄥˊ', e: '🧸', s: 'Hug my ___.', st: '抱抱泰迪熊。', l: 2 },
     { t: 'Triangle', tr: '三角形', b: 'ㄙㄢ ㄐㄧㄠˇ ㄒㄧㄥˊ', e: '🔺', s: 'Three sides ___.', st: '三角形有三邊。', l: 2 },
     { t: 'T-shirt', tr: 'T恤', b: 'T ㄒㄩˋ', e: '👕', s: 'Wear a blue ___.', st: '穿藍色T恤。', l: 4 },
+    { t: 'Taxi', tr: '計程車', b: 'ㄐㄧˋ ㄔㄥˊ ㄔㄜ', e: '🚕', s: 'Yellow ___.', st: '黃色計程車。', l: 2 },
+    { t: 'Tent', tr: '帳篷', b: 'ㄓㄤˋ ㄆㄥˊ', e: '⛺', s: 'Sleep in a ___.', st: '在帳篷裡睡覺。', l: 2 },
+    { t: 'Tea', tr: '茶', b: 'ㄔㄚˊ', e: '🍵', s: 'Hot ___.', st: '熱茶。', l: 2 },
+    { t: 'Tooth', tr: '牙齒', b: 'ㄧㄚˊ ㄔˇ', e: '🦷', s: 'Brush your ___.', st: '刷牙。', l: 2 },
+    { t: 'Turkey', tr: '火雞', b: 'ㄏㄨㄛˇ ㄐㄧ', e: '🦃', s: 'Big ___.', st: '大火雞。', l: 3 },
+    { t: 'Towel', tr: '毛巾', b: 'ㄇㄠˊ ㄐㄧㄣ', e: '🧖', s: 'Dry with ___.', st: '用毛巾擦乾。', l: 2 },
+    { t: 'Tools', tr: '工具', b: 'ㄍㄨㄥ ㄐㄩˋ', e: '🛠️', s: 'Fix with ___.', st: '用工具修理。', l: 3 },
   ],
   U: [
     { t: 'Umbrella', tr: '雨傘', b: 'ㄩˇ ㄙㄢˇ', e: '☔', s: 'Rainy day ___.', st: '雨天撐傘。', l: 1 },
@@ -305,6 +412,8 @@ const RAW_VOCAB = {
     { t: 'Universe', tr: '宇宙', b: 'ㄩˇ ㄓㄡˋ', e: '🌌', s: 'Big ___.', st: '大宇宙。', l: 2 },
     { t: 'Ukulele', tr: '烏克麗麗', b: 'ㄨ ㄎㄜˋ ㄌㄧˋ ㄌㄧˋ', e: '🎸', s: 'Play ___.', st: '彈烏克麗麗。', l: 2 },
     { t: 'Urchin', tr: '海膽', b: 'ㄏㄞˇ ㄉㄢˇ', e: '🐡', s: 'Sea ___.', st: '海膽。', l: 2 },
+    { t: 'Underwear', tr: '內褲', b: 'ㄋㄟˋ ㄎㄨˋ', e: '🩲', s: 'Wear ___.', st: '穿內褲。', l: 2 },
+    { t: 'Unicycle', tr: '單輪車', b: 'ㄉㄢ ㄌㄨㄣˊ ㄔㄜ', e: '🚲', s: 'Ride a ___.', st: '騎單輪車。', l: 3 },
   ],
   V: [
     { t: 'Van', tr: '廂型車', b: 'ㄒㄧㄤ ㄒㄧㄥˊ ㄔㄜ', e: '🚐', s: 'Drive the ___.', st: '開廂型車。', l: 1 },
@@ -317,6 +426,8 @@ const RAW_VOCAB = {
     { t: 'Village', tr: '村莊', b: 'ㄘㄨㄣ ㄓㄨㄤ', e: '🏘️', s: '小村莊。', l: 2 },
     { t: 'Vacuum', tr: '吸塵器', b: 'ㄒㄧ ㄔㄣˊ ㄐㄧ', e: '🧹', s: 'Clean with ___.', st: '用吸塵器打掃。', l: 2 },
     { t: 'Valentine', tr: '情人節', b: 'ㄑㄧㄥˊ ㄖㄣˊ ㄐㄧㄝˊ', e: '💌', s: 'Be my ___.', st: '當我的情人。', l: 2 },
+    { t: 'Vulture', tr: '禿鷹', b: 'ㄊㄨ ㄧㄥ', e: '🦅', s: 'Big bird ___.', st: '大鳥禿鷹。', l: 3 },
+    { t: 'Vine', tr: '藤蔓', b: 'ㄊㄥˊ ㄇㄢˋ', e: '🌿', s: 'Climbing ___.', st: '攀爬的藤蔓。', l: 3 },
   ],
   W: [
     { t: 'Water', tr: '水', b: 'ㄕㄨㄟˇ', e: '💧', s: 'Drink ___.', st: '喝水。', l: 1 },
@@ -331,6 +442,10 @@ const RAW_VOCAB = {
     { t: 'Web', tr: '網', b: 'ㄨㄤˇ', e: '🕸️', s: 'Spider ___.', st: '蜘蛛網。', l: 2 },
     { t: 'Watermelon', tr: '西瓜', b: 'ㄒㄧ ㄍㄨㄚ', e: '🍉', s: 'Juicy ___.', st: '多汁西瓜。', l: 2 },
     { t: 'Wheel', tr: '輪子', b: 'ㄌㄨㄣˊ ㄗ˙', e: '🛞', s: 'Round ___.', st: '圓輪子。', l: 2 },
+    { t: 'Wall', tr: '牆壁', b: 'ㄑㄧㄤˊ ㄅㄧˋ', e: '🧱', s: 'Brick ___.', st: '磚牆。', l: 2 },
+    { t: 'Waffle', tr: '鬆餅', b: 'ㄙㄨㄥ ㄅㄧㄥˇ', e: '🧇', s: 'Yummy ___.', st: '好吃鬆餅。', l: 2 },
+    { t: 'Wallet', tr: '錢包', b: 'ㄑㄧㄢˊ ㄅㄠ', e: '👛', s: 'Money in ___.', st: '錢在錢包裡。', l: 2 },
+    { t: 'Wind', tr: '風', b: 'ㄈㄥ', e: '🌬️', s: 'Blow ___.', st: '吹風。', l: 1 },
   ],
   X: [
     { t: 'X-ray', tr: 'X光', b: 'X ㄍㄨㄤ', e: '🦴', s: 'Look at ___.', st: '看X光片。', l: 1 },
@@ -355,6 +470,8 @@ const RAW_VOCAB = {
     { t: 'Yarn', tr: '毛線', b: 'ㄇㄠˊ ㄒㄧㄢˋ', e: '🧶', s: 'Red ___.', st: '紅毛線。', l: 2 },
     { t: 'Yawn', tr: '打哈欠', b: 'ㄉㄚˇ ㄏㄚ ㄑㄧㄢˋ', e: '🥱', s: 'Sleepy ___.', st: '想睡打哈欠。', l: 2 },
     { t: 'Yoga', tr: '瑜伽', b: 'ㄩˊ ㄐㄧㄚ', e: '🧘', s: 'Do ___.', st: '做瑜伽。', l: 2 },
+    { t: 'Yolk', tr: '蛋黃', b: 'ㄉㄢˋ ㄏㄨㄤˊ', e: '🍳', s: 'Yellow ___.', st: '黃色蛋黃。', l: 2 },
+    { t: 'Yak', tr: '氂牛', b: 'ㄇㄠˊ ㄋㄧㄡˊ', e: '🐃', s: 'Hairy ___.', st: '長毛氂牛。', l: 3 },
   ],
   Z: [
     { t: 'Zoo', tr: '動物園', b: 'ㄉㄨㄥˋ ㄨˋ ㄩㄢˊ', e: '🏞️', s: 'Go to the ___.', st: '去動物園。', l: 1 },
@@ -380,23 +497,64 @@ ALPHABET.forEach(l => {
   }
 });
 
-// --- 2. 商店商品 ---
+// --- 2. 商店商品 (擴充至 50+ 項，分類混合) ---
+// type 'luca' 為交通工具/酷酷的, 'yuna' 為可愛/家家酒, 'common' 為通用家具
 const SHOP_ITEMS = [
-  { id: 'v1', name: 'Police Car', price: 20, emoji: '🚓', type: 'luca' },
-  { id: 'v2', name: 'Fire Truck', price: 20, emoji: '🚒', type: 'luca' },
-  { id: 'v3', name: 'Excavator', price: 30, emoji: '🚜', type: 'luca' },
-  { id: 'v4', name: 'UFO', price: 40, emoji: '🛸', type: 'luca' },
-  { id: 'v5', name: 'Submarine', price: 35, emoji: '🛥️', type: 'luca' },
-  { id: 'v6', name: 'Monster Truck', price: 40, emoji: '🚙', type: 'luca' },
-  { id: 'v7', name: 'Fighter Jet', price: 45, emoji: '✈️', type: 'luca' },
-  
-  { id: 'd1', name: 'Teddy Cub', price: 20, emoji: '🧸', type: 'yuna' },
-  { id: 'd2', name: 'Kitty Doll', price: 20, emoji: '🐱', type: 'yuna' },
-  { id: 'd3', name: 'Magic Wand', price: 40, emoji: '🪄', type: 'yuna' },
-  { id: 'd4', name: 'Picnic Basket', price: 25, emoji: '🧺', type: 'yuna' },
-  { id: 'd5', name: 'Balloon Gift', price: 15, emoji: '🎈', type: 'yuna' },
-  { id: 'd6', name: 'Pretty Dress', price: 30, emoji: '👗', type: 'yuna' },
-  { id: 'd7', name: 'Unicorn', price: 50, emoji: '🦄', type: 'yuna' },
+  // Luca specific (Vehicles & Cool stuff)
+  { id: 'v1', name: 'Police Car', price: 50, emoji: '🚓', type: 'luca' },
+  { id: 'v2', name: 'Fire Truck', price: 50, emoji: '🚒', type: 'luca' },
+  { id: 'v3', name: 'Excavator', price: 60, emoji: '🚜', type: 'luca' },
+  { id: 'v4', name: 'UFO', price: 80, emoji: '🛸', type: 'luca' },
+  { id: 'v5', name: 'Submarine', price: 70, emoji: '🛥️', type: 'luca' },
+  { id: 'v6', name: 'Monster Truck', price: 80, emoji: '🚙', type: 'luca' },
+  { id: 'v7', name: 'Fighter Jet', price: 90, emoji: '✈️', type: 'luca' },
+  { id: 'v8', name: 'Robot', price: 60, emoji: '🤖', type: 'luca' },
+  { id: 'v9', name: 'Rocket', price: 100, emoji: '🚀', type: 'luca' },
+  { id: 'v10', name: 'Race Car', price: 70, emoji: '🏎️', type: 'luca' },
+  { id: 'v11', name: 'Motorbike', price: 50, emoji: '🏍️', type: 'luca' },
+  { id: 'v12', name: 'Train', price: 60, emoji: '🚂', type: 'luca' },
+  { id: 'v13', name: 'Helicopter', price: 70, emoji: '🚁', type: 'luca' },
+  { id: 'v14', name: 'Speed Boat', price: 60, emoji: '🚤', type: 'luca' },
+  { id: 'v15', name: 'Satellite', price: 90, emoji: '🛰️', type: 'luca' },
+
+  // Yuna specific (Cute & Dolls)
+  { id: 'd1', name: 'Teddy Cub', price: 50, emoji: '🧸', type: 'yuna' },
+  { id: 'd2', name: 'Kitty Doll', price: 50, emoji: '🐱', type: 'yuna' },
+  { id: 'd3', name: 'Magic Wand', price: 80, emoji: '🪄', type: 'yuna' },
+  { id: 'd4', name: 'Picnic Basket', price: 40, emoji: '🧺', type: 'yuna' },
+  { id: 'd5', name: 'Balloon Gift', price: 30, emoji: '🎈', type: 'yuna' },
+  { id: 'd6', name: 'Pretty Dress', price: 60, emoji: '👗', type: 'yuna' },
+  { id: 'd7', name: 'Unicorn', price: 100, emoji: '🦄', type: 'yuna' },
+  { id: 'd8', name: 'Pink Ribbon', price: 30, emoji: '🎀', type: 'yuna' },
+  { id: 'd9', name: 'Crown', price: 90, emoji: '👑', type: 'yuna' },
+  { id: 'd10', name: 'Gem Ring', price: 70, emoji: '💍', type: 'yuna' },
+  { id: 'd11', name: 'Perfume', price: 60, emoji: '🧴', type: 'yuna' },
+  { id: 'd12', name: 'Handbag', price: 50, emoji: '👜', type: 'yuna' },
+  { id: 'd13', name: 'High Heels', price: 60, emoji: '👠', type: 'yuna' },
+  { id: 'd14', name: 'Lipstick', price: 40, emoji: '💄', type: 'yuna' },
+  { id: 'd15', name: 'Bouquet', price: 50, emoji: '💐', type: 'yuna' },
+
+  // Common / Furniture (For Room Decoration) - both can buy
+  { id: 'f1', name: 'Bed', price: 150, emoji: '🛏️', type: 'common' },
+  { id: 'f2', name: 'Sofa', price: 120, emoji: '🛋️', type: 'common' },
+  { id: 'f3', name: 'TV', price: 200, emoji: '📺', type: 'common' },
+  { id: 'f4', name: 'Lamp', price: 40, emoji: '💡', type: 'common' },
+  { id: 'f5', name: 'Plant', price: 40, emoji: '🪴', type: 'common' },
+  { id: 'f6', name: 'Clock', price: 50, emoji: '⏰', type: 'common' },
+  { id: 'f7', name: 'Computer', price: 180, emoji: '💻', type: 'common' },
+  { id: 'f8', name: 'Books', price: 30, emoji: '📚', type: 'common' },
+  { id: 'f9', name: 'Painting', price: 80, emoji: '🖼️', type: 'common' },
+  { id: 'f10', name: 'Toilet', price: 100, emoji: '🚽', type: 'common' },
+  { id: 'f11', name: 'Bath', price: 120, emoji: '🛁', type: 'common' },
+  { id: 'f12', name: 'Table', price: 80, emoji: '🪑', type: 'common' },
+  { id: 'f13', name: 'Radio', price: 60, emoji: '📻', type: 'common' },
+  { id: 'f14', name: 'Fan', price: 50, emoji: '💨', type: 'common' },
+  { id: 'f15', name: 'Camera', price: 150, emoji: '📷', type: 'common' },
+  { id: 'f16', name: 'Guitar', price: 120, emoji: '🎸', type: 'common' },
+  { id: 'f17', name: 'Bike', price: 100, emoji: '🚲', type: 'common' },
+  { id: 'f18', name: 'Phone', price: 150, emoji: '📱', type: 'common' },
+  { id: 'f19', name: 'Cactus', price: 40, emoji: '🌵', type: 'common' },
+  { id: 'f20', name: 'Treasure', price: 300, emoji: '💎', type: 'common' },
 ];
 
 // --- 3. 設定檔 ---
@@ -431,7 +589,7 @@ const PROFILES = {
   }
 };
 
-// --- 4. 語音 Hook (修正：150ms 間隔) ---
+// --- 4. 語音 Hook ---
 const useSpeech = () => {
   const [voices, setVoices] = useState([]);
   const isSpeaking = useRef(false);
@@ -466,7 +624,7 @@ const useSpeech = () => {
 
     u.onend = () => {
         isSpeaking.current = false;
-        setTimeout(processQueue, 150); // 150ms 間隔
+        setTimeout(processQueue, 150);
     };
 
     window.speechSynthesis.speak(u);
@@ -496,7 +654,7 @@ const useSpeech = () => {
   return { speak, speakBilingual };
 };
 
-// --- 5. 專業注音元件 (修正：WebkitTextStroke 極粗體) ---
+// --- 5. 專業注音元件 ---
 const ZhuyinBlock = ({ char, bopomofo }) => {
   const tones = ['ˊ', 'ˇ', 'ˋ', '˙'];
   let tone = '';
@@ -547,16 +705,20 @@ const ZhuyinWord = ({ text, bopomofo }) => {
 const App = () => {
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('cover'); 
-  const [stars, setStars] = useState({ luca: 20, yuna: 20 }); 
+  const [stars, setStars] = useState({ luca: 100, yuna: 100 }); 
   const [inventory, setInventory] = useState({ luca: [], yuna: [] });
   
-  // 記錄已學會(遊戲答對)的單字
+  // 房間布置狀態：存放每個使用者房間內的物品 { id (timestamp), itemId, x, y }
+  const [roomItems, setRoomItems] = useState(() => {
+    const saved = localStorage.getItem('happyAbcRoom');
+    return saved ? JSON.parse(saved) : { luca: [], yuna: [] };
+  });
+
   const [masteredWords, setMasteredWords] = useState(() => {
     const saved = localStorage.getItem('happyAbcProgress');
     return saved ? JSON.parse(saved) : { luca: [], yuna: [] };
   });
 
-  // [新增] 記錄學習模式中「已閱覽」的單字歷史 (格式: { luca: { A: ['Apple', ...], B: [] }, yuna: ... })
   const [learningHistory, setLearningHistory] = useState(() => {
     const saved = localStorage.getItem('happyAbcHistory');
     return saved ? JSON.parse(saved) : { luca: {}, yuna: {} };
@@ -569,6 +731,10 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('happyAbcHistory', JSON.stringify(learningHistory));
   }, [learningHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('happyAbcRoom', JSON.stringify(roomItems));
+  }, [roomItems]);
   
   const [currentLetter, setCurrentLetter] = useState(null);
   const [sessionWords, setSessionWords] = useState([]);
@@ -594,50 +760,33 @@ const App = () => {
     speak(`Hi ${PROFILES[uid].name}!`, 'en-US');
   };
 
-  // [重點修改] 聰明選字邏輯 (Round-Robin 輪循機制)
   const loadSmartWords = (letter) => {
     const profile = PROFILES[user];
     
-    // 1. 取得該字母下，符合等級的所有單字
     const allInLetter = RAW_VOCAB[letter] || [];
     const validWords = allInLetter.filter(w => w.l <= profile.levelLimit);
 
-    // 2. 取得該使用者在該字母下「已閱覽」的歷史紀錄
     const userHistory = learningHistory[user] || {};
     const seenWords = userHistory[letter] || [];
 
-    // 3. 找出「未閱覽」的單字 (候選池)
     let candidates = validWords.filter(w => !seenWords.includes(w.t));
     let selected = [];
 
-    // 4. 選字邏輯
     if (candidates.length >= profile.dailyWords) {
-        // A. 候選池充足：直接隨機選取
         selected = candidates.sort(() => 0.5 - Math.random()).slice(0, profile.dailyWords);
-        
-        // 更新歷史紀錄：把這次選的加進去
         const newHistory = { ...userHistory, [letter]: [...seenWords, ...selected.map(w => w.t)] };
         setLearningHistory({ ...learningHistory, [user]: newHistory });
 
     } else {
-        // B. 候選池不足 (或空了)：需要重置循環 (Wrap around)
-        // 先把剩下的全拿
         selected = [...candidates];
         const needed = profile.dailyWords - selected.length;
-        
-        // 為了補足數量，從「全部單字」中排除掉「剛剛才選的那些」，然後隨機補足
         const poolForRefill = validWords.filter(w => !selected.includes(w.t));
         const refill = poolForRefill.sort(() => 0.5 - Math.random()).slice(0, needed);
-        
         selected = [...selected, ...refill];
-        
-        // [關鍵] 重置歷史紀錄：新的歷史紀錄只包含「這次選出來的單字」
-        // 這樣等於開始新的一輪循環，且這輪已經看過 selected 這些字了
         const newHistory = { ...userHistory, [letter]: selected.map(w => w.t) };
         setLearningHistory({ ...learningHistory, [user]: newHistory });
-        
         if (candidates.length === 0) {
-           speak("New Cycle!", 'en-US'); // 提示新的一輪開始
+           speak("New Cycle!", 'en-US'); 
         }
     }
 
@@ -666,6 +815,7 @@ const App = () => {
     }
   };
 
+  // --- 遊戲邏輯修改 (Yuna 拼字提示) ---
   const initGame = (type) => {
     const profile = PROFILES[user];
     const userMastered = masteredWords[user] || [];
@@ -689,15 +839,32 @@ const App = () => {
       setTimeout(() => speak(target.t, 'en-US'), 300);
     } 
     else if (type === 'spell') {
-      newState.spelling = [];
       if (user === 'luca') {
+        newState.spelling = [];
         const correct = target.t[0].toUpperCase();
         const others = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').filter(c => c !== correct).sort(() => 0.5 - Math.random()).slice(0, 2);
         newState.options = [correct, ...others].sort(() => 0.5 - Math.random());
       } else {
+        // Yuna: 給予一半的字母提示
         const correctChars = target.t.toUpperCase().split('');
+        const len = correctChars.length;
+        
+        // 隨機選擇要顯示的索引 (大約一半)
+        const numToReveal = Math.ceil(len / 2);
+        const revealedIndices = new Set();
+        while(revealedIndices.size < numToReveal) {
+            revealedIndices.add(Math.floor(Math.random() * len));
+        }
+
+        // 預填 spelling 狀態
+        newState.spelling = correctChars.map((char, idx) => 
+            revealedIndices.has(idx) ? char : ''
+        );
+
+        // 選項只包含剩下的字母 + 干擾項
+        const hiddenChars = correctChars.filter((_, idx) => !revealedIndices.has(idx));
         const randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').sort(() => 0.5 - Math.random()).slice(0, 3);
-        newState.options = [...correctChars, ...randomChars].sort(() => 0.5 - Math.random());
+        newState.options = [...hiddenChars, ...randomChars].sort(() => 0.5 - Math.random());
       }
       setTimeout(() => speak(target.t, 'en-US'), 300);
     }
@@ -725,7 +892,7 @@ const App = () => {
 
   const handleSpelling = (char) => {
     if (gameState.isCorrect || gameState.showAnswer) return;
-    const { q } = gameState;
+    const { q, spelling } = gameState;
 
     if (user === 'luca') {
       if (char === q.t[0].toUpperCase()) handleCorrect('spell');
@@ -734,15 +901,38 @@ const App = () => {
         handleMistake();
       }
     } else {
-      const currentInput = [...gameState.spelling, char];
-      setGameState(prev => ({ ...prev, spelling: currentInput }));
+      // 找出第一個空位
+      const firstEmptyIndex = spelling.findIndex(c => c === '');
+      if (firstEmptyIndex === -1) return; // 沒空位了
+
+      const newSpelling = [...spelling];
+      newSpelling[firstEmptyIndex] = char;
+      setGameState(prev => ({ ...prev, spelling: newSpelling }));
+
       const targetStr = q.t.toUpperCase();
-      const inputStr = currentInput.join('');
+      const inputStr = newSpelling.join('');
       
-      if (inputStr === targetStr) handleCorrect('spell');
-      else if (inputStr.length >= targetStr.length) {
-        handleMistake();
-        setTimeout(() => setGameState(prev => ({ ...prev, spelling: [] })), 1000);
+      // 如果填滿了，檢查答案
+      if (!newSpelling.includes('')) {
+         if (inputStr === targetStr) {
+             handleCorrect('spell');
+         } else {
+             handleMistake();
+             // 錯誤的話，1秒後把剛填的清掉 (保留提示字)
+             setTimeout(() => {
+                setGameState(prev => {
+                   // 恢復原來的提示字 (這裡簡化處理：重新比較 input 和 target，不對的清空)
+                   // 但為了保留原始提示邏輯，我們只清空剛剛使用者填入的...比較複雜
+                   // 簡單作法：只清空本次填入的，但因為狀態沒存哪些是提示，所以我們
+                   // 簡單地：全部清空，重新給提示？不，這樣體驗不好。
+                   // 修正作法：在 init 時存一個 initialHint 狀態。
+                   // 既然沒存，我們只把 "錯誤的字" 清掉？
+                   // 這裡簡單做：清空所有「錯誤位置」的字
+                   const corrected = prev.spelling.map((c, i) => c === targetStr[i] ? c : '');
+                   return { ...prev, spelling: corrected };
+                });
+             }, 1000);
+         }
       } else {
         speak(char.toLowerCase(), 'en-US');
       }
@@ -762,7 +952,7 @@ const App = () => {
           const enSent = gameState.q.s.replace('___', gameState.q.t);
           speakBilingual(enSent, gameState.q.st);
       }
-      setStars(prev => ({ ...prev, [user]: prev[user] + 5 }));
+      setStars(prev => ({ ...prev, [user]: prev[user] + 10 })); // 增加獎勵
   };
 
   const handleMistake = () => {
@@ -774,6 +964,35 @@ const App = () => {
           setGameState(prev => ({ ...prev, mistakes: newMistakes }));
           speak("Try again!", 'en-US');
       }
+  };
+
+  // --- 房間布置邏輯 ---
+  const addToRoom = (itemId) => {
+     const newItem = {
+        id: Date.now(),
+        itemId: itemId,
+        x: 50 + Math.random() * 100, // 初始隨機位置
+        y: 50 + Math.random() * 100
+     };
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: [...prev[user], newItem]
+     }));
+     speak("Added to room!", 'en-US');
+  };
+
+  const removeFromRoom = (uniqueId) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].filter(i => i.id !== uniqueId)
+     }));
+  };
+
+  const updateItemPosition = (uniqueId, x, y) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
+     }));
   };
 
   // --- UI Components ---
@@ -879,13 +1098,17 @@ const App = () => {
                               <span className="text-4xl font-bold text-gray-300">{q.t.slice(1)}</span>
                            </div>
                         ) : (
-                           q.t.split('').map((char, i) => (
-                              <div key={i} className={`w-12 h-14 border-b-4 flex items-center justify-center text-3xl font-bold rounded-lg
-                                 ${spelling[i] ? 'bg-white text-gray-700 border-gray-300' : 'bg-black/5 border-transparent'}
-                              `}>
-                                 {spelling[i]}
-                              </div>
-                           ))
+                           // Yuna: 顯示拼字格，部分已有字
+                           q.t.split('').map((char, i) => {
+                              const filled = spelling[i];
+                              return (
+                                <div key={i} className={`w-12 h-14 border-b-4 flex items-center justify-center text-3xl font-bold rounded-lg mx-0.5
+                                    ${filled ? 'bg-white text-gray-800 border-gray-300' : 'bg-black/5 border-dashed border-gray-400'}
+                                `}>
+                                    {filled}
+                                </div>
+                              );
+                           })
                         )}
                      </div>
                   </div>
@@ -1018,7 +1241,7 @@ const App = () => {
 
        <h3 className="font-black text-gray-600 mb-4 flex items-center gap-2 text-xl"><Leaf className="text-[#78B159]"/> Nook's Cranny</h3>
        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-          {SHOP_ITEMS.filter(item => item.type === user).map(item => {
+          {SHOP_ITEMS.filter(item => item.type === user || item.type === 'common').map(item => {
              const owned = inventory[user].includes(item.id);
              const canAfford = stars[user] >= item.price;
              return (
@@ -1026,7 +1249,9 @@ const App = () => {
                    <div className="text-6xl mb-2">{item.emoji}</div>
                    <div className="font-bold text-gray-700">{item.name}</div>
                    {owned ? (
-                      <div className="mt-2 bg-[#E8F5E9] text-[#2E7D32] px-4 py-1 rounded-full font-bold text-xs">Sold Out</div>
+                      <button onClick={() => addToRoom(item.id)} className="mt-2 bg-[#E8F5E9] text-[#2E7D32] w-full py-1 rounded-full font-bold text-xs flex items-center justify-center gap-1">
+                         <Plus size={12}/> to Room
+                      </button>
                    ) : (
                       <button onClick={() => buyItem(item)} disabled={!canAfford} className={`w-full mt-2 py-2 rounded-xl font-bold text-sm ${canAfford ? 'bg-[#55C1DE] text-white hover:bg-[#4DB6D3]' : 'bg-gray-200 text-gray-400'}`}>
                          {item.price} Bells
@@ -1041,12 +1266,107 @@ const App = () => {
        <div className="bg-white rounded-[2rem] p-6 min-h-[120px] grid grid-cols-4 gap-4 border-4 border-[#F0F0F0] border-dashed">
           {inventory[user].map(itemId => {
              const item = SHOP_ITEMS.find(i => i.id === itemId);
-             return <div key={itemId} className="aspect-square bg-[#FDF6E3] rounded-2xl flex items-center justify-center text-4xl animate-pop-up">{item.emoji}</div>
+             return <div key={itemId} onClick={() => addToRoom(itemId)} className="aspect-square bg-[#FDF6E3] rounded-2xl flex items-center justify-center text-4xl animate-pop-up cursor-pointer hover:bg-[#FFF9C4]">{item.emoji}</div>
           })}
           {inventory[user].length === 0 && <div className="col-span-4 text-center text-gray-400 font-bold py-4">Your pockets are empty!</div>}
        </div>
     </div>
   );
+
+  // --- 新增：房間布置元件 ---
+  const RoomScreen = () => {
+    const items = roomItems[user] || [];
+    const containerRef = useRef(null);
+    const [draggingId, setDraggingId] = useRef(null); // 使用 ref 避免大量 re-render
+
+    // 簡單的拖曳邏輯 (Pointer events 支援觸控與滑鼠)
+    const handlePointerDown = (e, uniqueId) => {
+        e.preventDefault();
+        draggingId.current = uniqueId;
+    };
+
+    const handlePointerMove = (e) => {
+        if (!draggingId.current || !containerRef.current) return;
+        e.preventDefault();
+        
+        const rect = containerRef.current.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // 計算相對位置
+        const x = clientX - rect.left - 24; // -24 是為了讓手指在圖示中心
+        const y = clientY - rect.top - 24;
+
+        // 直接操作 DOM 提升效能，放下時再存 state
+        const el = document.getElementById(`item-${draggingId.current}`);
+        if(el) {
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+        }
+    };
+
+    const handlePointerUp = (e) => {
+        if (!draggingId.current) return;
+        
+        const rect = containerRef.current.getBoundingClientRect();
+        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+        const x = clientX - rect.left - 24;
+        const y = clientY - rect.top - 24;
+
+        updateItemPosition(draggingId.current, x, y);
+        draggingId.current = null;
+    };
+
+    return (
+        <div className="h-[80vh] w-full p-4 relative flex flex-col">
+             <div className="flex justify-between items-center mb-4">
+                 <h2 className="text-3xl font-black text-gray-700">{p.name}'s Room</h2>
+                 <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-4 py-2 rounded-full font-bold flex items-center gap-2">
+                    <Plus size={16}/> Add Items
+                 </button>
+             </div>
+
+             <div 
+                ref={containerRef}
+                className="flex-1 bg-white rounded-[2rem] border-8 border-[#C3B091] shadow-inner relative overflow-hidden touch-none"
+                style={{ backgroundImage: 'radial-gradient(#D7CCC8 2px, transparent 2px)', backgroundSize: '40px 40px' }}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+             >
+                {items.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-black text-2xl pointer-events-none">
+                        Empty Room... Go Shopping!
+                    </div>
+                )}
+                {items.map(item => {
+                    const product = SHOP_ITEMS.find(p => p.id === item.itemId);
+                    if (!product) return null;
+                    return (
+                        <div
+                            id={`item-${item.id}`}
+                            key={item.id}
+                            onPointerDown={(e) => handlePointerDown(e, item.id)}
+                            className="absolute text-5xl cursor-grab active:cursor-grabbing select-none hover:scale-110 transition-transform"
+                            style={{ left: item.x, top: item.y }}
+                        >
+                            {product.emoji}
+                            {/* 刪除按鈕 (長按或懸停顯示也可，這裡簡化為點擊顯示右上角小按鈕) */}
+                            <div 
+                                onClick={(e) => { e.stopPropagation(); removeFromRoom(item.id); }}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 hover:opacity-100 cursor-pointer"
+                            >
+                                <Trash2 size={12}/>
+                            </div>
+                        </div>
+                    );
+                })}
+             </div>
+             <p className="text-center text-gray-400 mt-2 text-sm">Drag items to move • Shop for more!</p>
+        </div>
+    );
+  };
 
   if (!user) return <CoverScreen />;
 
@@ -1112,6 +1432,7 @@ const App = () => {
         )}
 
         {view === 'learn' && <LearnScreen />}
+        {view === 'room' && <RoomScreen />}
         {view.startsWith('game-') && <GameScreen type={view.split('-')[1]} />}
         {view === 'shop' && <ShopScreen />}
       </main>
@@ -1119,6 +1440,7 @@ const App = () => {
       {view !== 'cover' && (
          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#333] px-6 py-3 rounded-[3rem] shadow-2xl flex gap-6 z-50 border-4 border-[#555]">
             <button onClick={() => setView('home')} className={`p-2 rounded-full ${view === 'home' ? 'text-[#78B159]' : 'text-gray-400 hover:text-white'}`}><Home size={28}/></button>
+            <button onClick={() => setView('room')} className={`p-2 rounded-full ${view === 'room' ? 'text-[#55C1DE]' : 'text-gray-400 hover:text-white'}`}><Move size={28}/></button>
             <button onClick={() => setView('shop')} className={`p-2 rounded-full ${view === 'shop' ? 'text-[#F4E04D]' : 'text-gray-400 hover:text-white'}`}><ShoppingBag size={28}/></button>
             <button onClick={() => setUser(null)} className="p-2 rounded-full text-gray-400 hover:text-white"><Settings size={28}/></button>
          </div>

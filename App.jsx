@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Volume2, Home, Settings, CheckCircle, XCircle, ShoppingBag, 
-  Trophy, Ghost, RefreshCw, Crown, Leaf, Trees, Gift, 
-  Car, Plane, Rocket, Star, ArrowLeft, Move, Trash2, Plus
+  Volume2, Home, Settings, ShoppingBag, 
+  Trophy, Ghost, RefreshCw, Star, ArrowLeft, 
+  Trash2, Plus, Move 
 } from 'lucide-react';
 
-// --- 1. A-Z 資料庫 (大幅擴充至約 500 字) ---
-// 為了版面整潔，這裡進行了大量擴充，涵蓋更多生活單字
+// --- 1. A-Z 資料庫 (擴充版) ---
 const RAW_VOCAB = {
   A: [
     { t: 'Apple', tr: '蘋果', b: 'ㄆㄧㄥˊ ㄍㄨㄛˇ', e: '🍎', s: 'I eat a red ___.', st: '我吃紅蘋果。', l: 1 },
@@ -497,8 +496,7 @@ ALPHABET.forEach(l => {
   }
 });
 
-// --- 2. 商店商品 (擴充至 50+ 項，分類混合) ---
-// type 'luca' 為交通工具/酷酷的, 'yuna' 為可愛/家家酒, 'common' 為通用家具
+// --- 2. 商店商品 (50+ 項) ---
 const SHOP_ITEMS = [
   // Luca specific (Vehicles & Cool stuff)
   { id: 'v1', name: 'Police Car', price: 50, emoji: '🚓', type: 'luca' },
@@ -534,7 +532,7 @@ const SHOP_ITEMS = [
   { id: 'd14', name: 'Lipstick', price: 40, emoji: '💄', type: 'yuna' },
   { id: 'd15', name: 'Bouquet', price: 50, emoji: '💐', type: 'yuna' },
 
-  // Common / Furniture (For Room Decoration) - both can buy
+  // Common / Furniture (For Room Decoration)
   { id: 'f1', name: 'Bed', price: 150, emoji: '🛏️', type: 'common' },
   { id: 'f2', name: 'Sofa', price: 120, emoji: '🛋️', type: 'common' },
   { id: 'f3', name: 'TV', price: 200, emoji: '📺', type: 'common' },
@@ -708,7 +706,6 @@ const App = () => {
   const [stars, setStars] = useState({ luca: 100, yuna: 100 }); 
   const [inventory, setInventory] = useState({ luca: [], yuna: [] });
   
-  // 房間布置狀態：存放每個使用者房間內的物品 { id (timestamp), itemId, x, y }
   const [roomItems, setRoomItems] = useState(() => {
     const saved = localStorage.getItem('happyAbcRoom');
     return saved ? JSON.parse(saved) : { luca: [], yuna: [] };
@@ -807,6 +804,10 @@ const App = () => {
 
   const buyItem = (item) => {
     if (stars[user] >= item.price) {
+      if (inventory[user].includes(item.id)) {
+        speak("You already have this!", 'en-US');
+        return;
+      }
       setStars(prev => ({ ...prev, [user]: prev[user] - item.price }));
       setInventory(prev => ({ ...prev, [user]: [...prev[user], item.id] }));
       speak(`Bought ${item.name}!`, 'en-US');
@@ -815,7 +816,6 @@ const App = () => {
     }
   };
 
-  // --- 遊戲邏輯修改 (Yuna 拼字提示) ---
   const initGame = (type) => {
     const profile = PROFILES[user];
     const userMastered = masteredWords[user] || [];
@@ -845,23 +845,16 @@ const App = () => {
         const others = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').filter(c => c !== correct).sort(() => 0.5 - Math.random()).slice(0, 2);
         newState.options = [correct, ...others].sort(() => 0.5 - Math.random());
       } else {
-        // Yuna: 給予一半的字母提示
         const correctChars = target.t.toUpperCase().split('');
         const len = correctChars.length;
-        
-        // 隨機選擇要顯示的索引 (大約一半)
         const numToReveal = Math.ceil(len / 2);
         const revealedIndices = new Set();
         while(revealedIndices.size < numToReveal) {
             revealedIndices.add(Math.floor(Math.random() * len));
         }
-
-        // 預填 spelling 狀態
         newState.spelling = correctChars.map((char, idx) => 
             revealedIndices.has(idx) ? char : ''
         );
-
-        // 選項只包含剩下的字母 + 干擾項
         const hiddenChars = correctChars.filter((_, idx) => !revealedIndices.has(idx));
         const randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').sort(() => 0.5 - Math.random()).slice(0, 3);
         newState.options = [...hiddenChars, ...randomChars].sort(() => 0.5 - Math.random());
@@ -901,9 +894,8 @@ const App = () => {
         handleMistake();
       }
     } else {
-      // 找出第一個空位
       const firstEmptyIndex = spelling.findIndex(c => c === '');
-      if (firstEmptyIndex === -1) return; // 沒空位了
+      if (firstEmptyIndex === -1) return;
 
       const newSpelling = [...spelling];
       newSpelling[firstEmptyIndex] = char;
@@ -912,22 +904,13 @@ const App = () => {
       const targetStr = q.t.toUpperCase();
       const inputStr = newSpelling.join('');
       
-      // 如果填滿了，檢查答案
       if (!newSpelling.includes('')) {
          if (inputStr === targetStr) {
              handleCorrect('spell');
          } else {
              handleMistake();
-             // 錯誤的話，1秒後把剛填的清掉 (保留提示字)
              setTimeout(() => {
                 setGameState(prev => {
-                   // 恢復原來的提示字 (這裡簡化處理：重新比較 input 和 target，不對的清空)
-                   // 但為了保留原始提示邏輯，我們只清空剛剛使用者填入的...比較複雜
-                   // 簡單作法：只清空本次填入的，但因為狀態沒存哪些是提示，所以我們
-                   // 簡單地：全部清空，重新給提示？不，這樣體驗不好。
-                   // 修正作法：在 init 時存一個 initialHint 狀態。
-                   // 既然沒存，我們只把 "錯誤的字" 清掉？
-                   // 這裡簡單做：清空所有「錯誤位置」的字
                    const corrected = prev.spelling.map((c, i) => c === targetStr[i] ? c : '');
                    return { ...prev, spelling: corrected };
                 });
@@ -952,7 +935,7 @@ const App = () => {
           const enSent = gameState.q.s.replace('___', gameState.q.t);
           speakBilingual(enSent, gameState.q.st);
       }
-      setStars(prev => ({ ...prev, [user]: prev[user] + 10 })); // 增加獎勵
+      setStars(prev => ({ ...prev, [user]: prev[user] + 10 }));
   };
 
   const handleMistake = () => {
@@ -966,26 +949,19 @@ const App = () => {
       }
   };
 
-  // --- 房間布置邏輯 ---
+  // --- 房間邏輯 ---
   const addToRoom = (itemId) => {
      const newItem = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         itemId: itemId,
-        x: 50 + Math.random() * 100, // 初始隨機位置
-        y: 50 + Math.random() * 100
+        x: 100 + (Math.random() * 50),
+        y: 100 + (Math.random() * 50)
      };
      setRoomItems(prev => ({
         ...prev,
-        [user]: [...prev[user], newItem]
+        [user]: [...(prev[user] || []), newItem]
      }));
-     speak("Added to room!", 'en-US');
-  };
-
-  const removeFromRoom = (uniqueId) => {
-     setRoomItems(prev => ({
-        ...prev,
-        [user]: prev[user].filter(i => i.id !== uniqueId)
-     }));
+     speak("Plop!", 'en-US');
   };
 
   const updateItemPosition = (uniqueId, x, y) => {
@@ -993,6 +969,14 @@ const App = () => {
         ...prev,
         [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
      }));
+  };
+
+  const removeFromRoom = (uniqueId) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].filter(i => i.id !== uniqueId)
+     }));
+     speak("Bye bye!", 'en-US');
   };
 
   // --- UI Components ---
@@ -1098,7 +1082,6 @@ const App = () => {
                               <span className="text-4xl font-bold text-gray-300">{q.t.slice(1)}</span>
                            </div>
                         ) : (
-                           // Yuna: 顯示拼字格，部分已有字
                            q.t.split('').map((char, i) => {
                               const filled = spelling[i];
                               return (
@@ -1249,9 +1232,9 @@ const App = () => {
                    <div className="text-6xl mb-2">{item.emoji}</div>
                    <div className="font-bold text-gray-700">{item.name}</div>
                    {owned ? (
-                      <button onClick={() => addToRoom(item.id)} className="mt-2 bg-[#E8F5E9] text-[#2E7D32] w-full py-1 rounded-full font-bold text-xs flex items-center justify-center gap-1">
-                         <Plus size={12}/> to Room
-                      </button>
+                      <div className="mt-2 bg-[#E8F5E9] text-[#2E7D32] w-full py-1 rounded-full font-bold text-xs flex items-center justify-center gap-1">
+                         Owned
+                      </div>
                    ) : (
                       <button onClick={() => buyItem(item)} disabled={!canAfford} className={`w-full mt-2 py-2 rounded-xl font-bold text-sm ${canAfford ? 'bg-[#55C1DE] text-white hover:bg-[#4DB6D3]' : 'bg-gray-200 text-gray-400'}`}>
                          {item.price} Bells
@@ -1261,70 +1244,21 @@ const App = () => {
              );
           })}
        </div>
-       
-       <h3 className="font-black text-gray-600 mb-4 flex items-center gap-2 text-xl"><Trophy className="text-[#FFB74D]"/> Inventory</h3>
-       <div className="bg-white rounded-[2rem] p-6 min-h-[120px] grid grid-cols-4 gap-4 border-4 border-[#F0F0F0] border-dashed">
-          {inventory[user].map(itemId => {
-             const item = SHOP_ITEMS.find(i => i.id === itemId);
-             return <div key={itemId} onClick={() => addToRoom(itemId)} className="aspect-square bg-[#FDF6E3] rounded-2xl flex items-center justify-center text-4xl animate-pop-up cursor-pointer hover:bg-[#FFF9C4]">{item.emoji}</div>
-          })}
-          {inventory[user].length === 0 && <div className="col-span-4 text-center text-gray-400 font-bold py-4">Your pockets are empty!</div>}
-       </div>
     </div>
   );
 
- // 1. 將物品加入房間 (隨機微調位置，避免重疊)
-  const addToRoom = (itemId) => {
-     const newItem = {
-        id: Date.now() + Math.random(), // 確保唯一 ID
-        itemId: itemId,
-        x: 100 + (Math.random() * 50),  // 預設出現在左上偏中
-        y: 100 + (Math.random() * 50)
-     };
-     setRoomItems(prev => ({
-        ...prev,
-        [user]: [...(prev[user] || []), newItem]
-     }));
-     speak("Plop!", 'en-US'); // 音效提示
-  };
-
-  // 2. 更新物品位置
-  const updateItemPosition = (uniqueId, x, y) => {
-     setRoomItems(prev => ({
-        ...prev,
-        [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
-     }));
-  };
-
-  // 3. 從房間移除
-  const removeFromRoom = (uniqueId) => {
-     setRoomItems(prev => ({
-        ...prev,
-        [user]: prev[user].filter(i => i.id !== uniqueId)
-     }));
-     speak("Bye bye!", 'en-US');
-  };
-
-  // --- 全新的房間介面 (整合 Inventory) ---
   const RoomScreen = () => {
     const items = roomItems[user] || [];
     const ownedItemIds = inventory[user] || [];
-    
-    // 取得實際擁有物品的詳細資料
     const myInventory = ownedItemIds.map(id => SHOP_ITEMS.find(i => i.id === id)).filter(Boolean);
 
-    // 拖曳狀態管理
     const [draggingId, setDraggingId] = useState(null);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const containerRef = useRef(null);
 
-    // 開始拖曳
     const handlePointerDown = (e, item) => {
-        e.preventDefault(); // 防止手機滾動
+        e.preventDefault();
         const rect = e.currentTarget.getBoundingClientRect();
-        const containerRect = containerRef.current.getBoundingClientRect();
-        
-        // 計算游標點擊點與物件左上角的差距，讓拖曳更自然
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
@@ -1335,7 +1269,6 @@ const App = () => {
         setDraggingId(item.id);
     };
 
-    // 拖曳中
     const handlePointerMove = (e) => {
         if (!draggingId || !containerRef.current) return;
         e.preventDefault();
@@ -1344,12 +1277,10 @@ const App = () => {
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const containerRect = containerRef.current.getBoundingClientRect();
 
-        // 計算新座標 (游標位置 - 容器偏移 - 物件內部偏移)
         let newX = clientX - containerRect.left - offset.x;
         let newY = clientY - containerRect.top - offset.y;
 
-        // 邊界限制 (不讓物品拖出房間)
-        const maxX = containerRect.width - 60; // 假設物品寬度約60
+        const maxX = containerRect.width - 60;
         const maxY = containerRect.height - 60;
         
         if (newX < 0) newX = 0;
@@ -1357,24 +1288,20 @@ const App = () => {
         if (newX > maxX) newX = maxX;
         if (newY > maxY) newY = maxY;
 
-        // 直接更新 DOM 效能較好，但為了簡單這裡直接更新 State (React 18 效能通常足夠)
         updateItemPosition(draggingId, newX, newY);
     };
 
-    // 結束拖曳
     const handlePointerUp = () => {
         setDraggingId(null);
     };
 
     return (
         <div className="h-[80vh] flex flex-col pb-24">
-             {/* 標題區 */}
              <div className="flex justify-between items-center mb-2 px-2">
                  <h2 className="text-2xl font-black text-gray-700">{p.name}'s Room</h2>
                  <div className="text-sm font-bold text-gray-400">Drag to move • Tap below to add</div>
              </div>
 
-             {/* 房間畫布區 (Canvas) */}
              <div 
                 ref={containerRef}
                 className="flex-1 bg-white rounded-[2rem] border-8 border-[#C3B091] shadow-inner relative overflow-hidden touch-none"
@@ -1385,9 +1312,8 @@ const App = () => {
                 }}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
-                onPointerLeave={handlePointerUp} // 離開範圍也算放開
+                onPointerLeave={handlePointerUp}
              >
-                {/* 如果房間是空的提示 */}
                 {items.length === 0 && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 pointer-events-none">
                         <Home size={48} className="mb-2 opacity-50"/>
@@ -1396,7 +1322,6 @@ const App = () => {
                     </div>
                 )}
 
-                {/* 房間內的物品 */}
                 {items.map(item => {
                     const product = SHOP_ITEMS.find(p => p.id === item.itemId);
                     if (!product) return null;
@@ -1412,15 +1337,13 @@ const App = () => {
                                 top: item.y,
                                 width: '60px',
                                 height: '60px',
-                                touchAction: 'none' // 關鍵：防止觸控時捲動頁面
+                                touchAction: 'none'
                             }}
                         >
                             <span className="text-5xl drop-shadow-md">{product.emoji}</span>
-                            
-                            {/* 只有選取或拖曳時顯示移除按鈕 */}
                             <button 
                                 onPointerDown={(e) => {
-                                    e.stopPropagation(); // 防止觸發拖曳
+                                    e.stopPropagation();
                                     removeFromRoom(item.id);
                                 }}
                                 className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm opacity-0 hover:opacity-100 active:opacity-100 transition-opacity"
@@ -1432,7 +1355,6 @@ const App = () => {
                 })}
              </div>
 
-             {/* 底部 Inventory (物品欄) */}
              <div className="mt-4">
                 <div className="flex items-center gap-2 mb-2 px-2">
                     <ShoppingBag size={18} className="text-[#55C1DE]"/>
@@ -1456,7 +1378,6 @@ const App = () => {
                                 </button>
                             ))
                         )}
-                        {/* 連結到商店的快捷按鈕 */}
                         <button 
                             onClick={() => setView('shop')}
                             className="flex-shrink-0 w-16 h-16 bg-[#E0F7FA] rounded-xl flex flex-col items-center justify-center text-[#006064] font-bold text-xs border-2 border-dashed border-[#00BCD4]"
@@ -1470,5 +1391,97 @@ const App = () => {
         </div>
     );
   };
+
+  if (!user) return <CoverScreen />;
+
+  return (
+    <div className="min-h-screen font-sans bg-[#FDF6E3] pb-safe relative">
+      <LeafPattern />
+      <Header />
+      <main className="pt-6 px-4 max-w-2xl mx-auto relative z-10 pb-32">
+        {view === 'home' && (
+           <div className="grid gap-6 animate-fade-in">
+              <div className="bg-white rounded-[2.5rem] p-6 shadow-sm flex items-center gap-6 border-4 border-white relative overflow-hidden">
+                 <div className={`w-24 h-24 rounded-full flex items-center justify-center text-6xl ${p.theme} border-4 border-white shadow-md`}>{p.avatar}</div>
+                 <div>
+                    <div className="text-[#78B159] font-black text-sm uppercase tracking-widest">PASSPORT</div>
+                    <h2 className="text-3xl font-black text-gray-800">{p.name}</h2>
+                    <div className="text-gray-400 font-bold text-sm mt-1">Island Resident</div>
+                 </div>
+              </div>
+
+              {(() => {
+                const { current, total } = getProgressStats();
+                const percent = Math.round((current / total) * 100) || 0;
+                return (
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-white mb-2">
+                    <div className="flex justify-between text-sm font-bold text-gray-500 mb-1">
+                      <span>Collection Progress</span>
+                      <span>{current} / {total} Words</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                       <div className={`h-full ${p.theme} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
+                    </div>
+                    <div className="text-right text-xs font-black text-[#78B159] mt-1">{percent}% Complete!</div>
+                  </div>
+                );
+              })()}
+
+              <div className="bg-white/60 backdrop-blur rounded-[2rem] p-6">
+                 <h3 className="text-[#78B159] font-black mb-4 flex items-center gap-2"><Trees size={20}/> Word Cards</h3>
+                 <div className="grid grid-cols-6 gap-2">
+                    {ALPHABET.map(l => (
+                       <button key={l} onClick={() => loadSmartWords(l)} className="aspect-square rounded-xl bg-white font-black text-gray-600 shadow-sm hover:bg-[#78B159] hover:text-white transition-colors">
+                          {l}
+                       </button>
+                    ))}
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                 <button onClick={() => initGame('listen')} className="bg-white aspect-square rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#55C1DE]">
+                    <div className="w-16 h-16 bg-[#B3E5FC] rounded-3xl flex items-center justify-center text-[#0277BD] text-3xl"><Volume2 /></div>
+                    <span className="font-black text-gray-600">Listen</span>
+                 </button>
+                 <button onClick={() => initGame('spell')} className="bg-white aspect-square rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#CE93D8]">
+                    <div className="w-16 h-16 bg-[#E1BEE7] rounded-3xl flex items-center justify-center text-[#7B1FA2] text-3xl font-black">Abc</div>
+                    <span className="font-black text-gray-600">Spell</span>
+                 </button>
+                 <button onClick={() => initGame('fill')} className="col-span-2 bg-white h-24 rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex items-center justify-center gap-4 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#FFCC80]">
+                    <div className="w-12 h-12 bg-[#FFE0B2] rounded-3xl flex items-center justify-center text-[#EF6C00] text-2xl font-black">___</div>
+                    <span className="font-black text-gray-600 text-xl">Fill-in</span>
+                 </button>
+              </div>
+           </div>
+        )}
+
+        {view === 'learn' && <LearnScreen />}
+        {view === 'room' && <RoomScreen />}
+        {view.startsWith('game-') && <GameScreen type={view.split('-')[1]} />}
+        {view === 'shop' && <ShopScreen />}
+      </main>
+
+      {view !== 'cover' && (
+         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#333] px-6 py-3 rounded-[3rem] shadow-2xl flex gap-6 z-50 border-4 border-[#555]">
+            <button onClick={() => setView('home')} className={`p-2 rounded-full ${view === 'home' ? 'text-[#78B159]' : 'text-gray-400 hover:text-white'}`}><Home size={28}/></button>
+            <button onClick={() => setView('room')} className={`p-2 rounded-full ${view === 'room' ? 'text-[#55C1DE]' : 'text-gray-400 hover:text-white'}`}><Move size={28}/></button>
+            <button onClick={() => setView('shop')} className={`p-2 rounded-full ${view === 'shop' ? 'text-[#F4E04D]' : 'text-gray-400 hover:text-white'}`}><ShoppingBag size={28}/></button>
+            <button onClick={() => setUser(null)} className="p-2 rounded-full text-gray-400 hover:text-white"><Settings size={28}/></button>
+         </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes bounce-slow { 0%, 100% { transform: translateY(-5%); } 50% { transform: translateY(5%); } }
+        .animate-bounce-slow { animation: bounce-slow 2s infinite; }
+        .animate-pop-up { animation: pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        .animate-fade-in { animation: fade 0.5s ease-out; }
+        .animate-slide-up { animation: slide 0.5s ease-out; }
+        @keyframes pop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slide { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      `}</style>
+    </div>
+  );
+};
 
 export default App;

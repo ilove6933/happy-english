@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Volume2, Home, Settings, ShoppingBag, 
   Trophy, Ghost, RefreshCw, Star, ArrowLeft, 
-  Trash2, Plus, Move 
+  Trash2, Plus, Move , Leaf, Trees
 } from 'lucide-react';
 
 // --- 1. A-Z 資料庫 (擴充版) ---

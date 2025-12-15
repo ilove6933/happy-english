@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Volume2, Home, Settings, ShoppingBag, 
   Trophy, Ghost, RefreshCw, Star, ArrowLeft, 
-  Trash2, Plus, Move , Leaf, Trees
+  Trash2, Plus, Move, Leaf, Trees, Sun, Cloud, Moon
 } from 'lucide-react';
 
 // --- 1. A-Z 資料庫 (擴充版) ---
@@ -757,12 +757,24 @@ const App = () => {
     speak(`Hi ${PROFILES[uid].name}!`, 'en-US');
   };
 
+  // --- 學習機制優化：點擊卡片掉錢 ---
+  const playWordSound = (word) => {
+      speakBilingual(word.t, word.tr);
+      // 機率掉錢，增加學習動機
+      if (Math.random() > 0.6) {
+          setStars(prev => ({ ...prev, [user]: prev[user] + 1 }));
+      }
+  };
+
+  const playSentence = (word) => {
+      const fullEn = word.s.replace('___', word.t);
+      speakBilingual(fullEn, word.st);
+  };
+
   const loadSmartWords = (letter) => {
     const profile = PROFILES[user];
-    
     const allInLetter = RAW_VOCAB[letter] || [];
     const validWords = allInLetter.filter(w => w.l <= profile.levelLimit);
-
     const userHistory = learningHistory[user] || {};
     const seenWords = userHistory[letter] || [];
 
@@ -773,7 +785,6 @@ const App = () => {
         selected = candidates.sort(() => 0.5 - Math.random()).slice(0, profile.dailyWords);
         const newHistory = { ...userHistory, [letter]: [...seenWords, ...selected.map(w => w.t)] };
         setLearningHistory({ ...learningHistory, [user]: newHistory });
-
     } else {
         selected = [...candidates];
         const needed = profile.dailyWords - selected.length;
@@ -782,31 +793,13 @@ const App = () => {
         selected = [...selected, ...refill];
         const newHistory = { ...userHistory, [letter]: selected.map(w => w.t) };
         setLearningHistory({ ...learningHistory, [user]: newHistory });
-        if (candidates.length === 0) {
-           speak("New Cycle!", 'en-US'); 
-        }
+        if (candidates.length === 0) speak("New Cycle!", 'en-US'); 
     }
 
     setSessionWords(selected);
     setCurrentLetter(letter);
     setView('learn');
     speak(letter, 'en-US');
-  };
-
-  // 修改原本的 playWordSound，加入賺錢邏輯
-  const playWordSound = (word) => {
-      speakBilingual(word.t, word.tr);
-      
-      // [新增] 每天/每次點擊學習卡片，有 30% 機率掉落 1 Bell (避免洗錢，或設定上限)
-      if (Math.random() > 0.7) {
-          setStars(prev => ({ ...prev, [user]: prev[user] + 1 }));
-          // 可以加一個小音效提示 "Coin!"
-      }
-  };
-
-  const playSentence = (word) => {
-      const fullEn = word.s.replace('___', word.t);
-      speakBilingual(fullEn, word.st);
   };
 
   const buyItem = (item) => {
@@ -823,43 +816,27 @@ const App = () => {
     }
   };
 
-// --- 修改後的 initGame：只考學過的字 ---
+  // --- 遊戲邏輯優化：優先考學過的字 ---
   const initGame = (type) => {
     const profile = PROFILES[user];
-    
-    // 1. 取得該使用者「看過」的所有單字清單 (從 learningHistory 撈)
     const userHistory = learningHistory[user] || {};
-    // 將所有字母看過的單字合併成一個陣列
     const learnedWordsList = Object.values(userHistory).flat();
-
-    // 2. 為了避免題目太少（剛開始學），我們設定一個規則：
-    // 如果學過的字少於 5 個，就強制混入一些簡單的 Level 1 單字，或者提示去學習
-    let targetPool = [];
-    
-    // 從 RAW_VOCAB 撈出完整的單字物件 (因為 history 只存了單字文字 text)
     const allValidWords = ALPHABET.flatMap(l => RAW_VOCAB[l] || []).filter(w => w.l <= profile.levelLimit);
     
-    if (learnedWordsList.length < 5) {
-        // [情境 A] 學得太少：提示去學習
+    // 如果學太少，強制跳轉去學習
+    if (learnedWordsList.length < 3) {
         speak("Go learn some words first!", 'en-US');
-        // 自動導向到學習頁面，或者只讓他們玩少量的字
-        // 這裡我們選擇導向到 'learn' 並開啟 'A'
         loadSmartWords('A'); 
         return; 
-    } else {
-        // [情境 B] 正常模式：只考學過的字
-        targetPool = allValidWords.filter(w => learnedWordsList.includes(w.t));
     }
 
-    // 防呆：萬一過濾後沒字了 (理論上被上面擋掉了)
-    if (targetPool.length === 0) targetPool = allValidWords.filter(w => w.l === 1);
+    // 題庫優先選學過的
+    let targetPool = allValidWords.filter(w => learnedWordsList.includes(w.t));
+    if (targetPool.length === 0) targetPool = allValidWords; // Fallback
 
-    // --- 以下邏輯維持原樣，但 source 改為 targetPool ---
     const target = targetPool[Math.floor(Math.random() * targetPool.length)];
     let newState = { q: target, isCorrect: null, mistakes: 0, showAnswer: false };
 
-    // 產生干擾選項 (干擾項可以是沒學過的字，這樣比較好猜，或是學過的字增加難度)
-    // 這裡設定：干擾項從「所有單字」裡抓，這樣如果還沒學過干擾項，小朋友很容易排除它，增加信心
     if (type === 'listen') {
       const count = user === 'luca' ? 3 : 4;
       const others = allValidWords.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, count - 1);
@@ -890,7 +867,6 @@ const App = () => {
       setTimeout(() => speak(target.t, 'en-US'), 300);
     }
     else if (type === 'fill') {
-      // 填空題的干擾項也建議混入一點學過的，增加鑑別度
       const others = allValidWords.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, 3);
       newState.options = [target, ...others].sort(() => 0.5 - Math.random());
       if (user === 'luca') {
@@ -978,13 +954,21 @@ const App = () => {
       }
   };
 
-  // --- 房間邏輯 ---
+  // --- 房間管理 ---
+  const updateItemPosition = (uniqueId, x, y) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
+     }));
+  };
+
   const addToRoom = (itemId) => {
+     // 加入時隨機位置稍微分散
      const newItem = {
         id: Date.now() + Math.random(),
         itemId: itemId,
-        x: 100 + (Math.random() * 50),
-        y: 100 + (Math.random() * 50)
+        x: 100 + (Math.random() * 50), 
+        y: 150 + (Math.random() * 50) // 避開上方牆壁區
      };
      setRoomItems(prev => ({
         ...prev,
@@ -993,19 +977,12 @@ const App = () => {
      speak("Plop!", 'en-US');
   };
 
-  const updateItemPosition = (uniqueId, x, y) => {
-     setRoomItems(prev => ({
-        ...prev,
-        [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
-     }));
-  };
-
   const removeFromRoom = (uniqueId) => {
      setRoomItems(prev => ({
         ...prev,
         [user]: prev[user].filter(i => i.id !== uniqueId)
      }));
-     speak("Bye bye!", 'en-US');
+     speak("Deleted!", 'en-US');
   };
 
   // --- UI Components ---
@@ -1060,6 +1037,227 @@ const App = () => {
        </div>
     </header>
   );
+
+  // --- 全新的房間佈置元件 (Sticker Book Mode) ---
+  const RoomScreen = () => {
+    const items = roomItems[user] || [];
+    const ownedItemIds = inventory[user] || [];
+    const myInventory = ownedItemIds.map(id => SHOP_ITEMS.find(i => i.id === id)).filter(Boolean);
+
+    const [draggingId, setDraggingId] = useState(null);
+    const [sceneIndex, setSceneIndex] = useState(0);
+    const containerRef = useRef(null);
+    const dragOffset = useRef({ x: 0, y: 0 });
+
+    // 定義 4 種風格場景 (CSS Art)
+    const SCENES = [
+        { 
+            name: "Cozy Room", 
+            bg: "bg-[#FFF3E0]",
+            floor: "bg-[#D7CCC8]",
+            accent: "border-[#8D6E63]",
+            decor: "🪟" // 窗戶
+        },
+        { 
+            name: "Garden", 
+            bg: "bg-[#E1F5FE]",
+            floor: "bg-[#C8E6C9]",
+            accent: "border-[#66BB6A]",
+            decor: "🌳" // 樹
+        },
+        { 
+            name: "Space", 
+            bg: "bg-[#1A237E]",
+            floor: "bg-[#283593]",
+            accent: "border-[#5C6BC0]",
+            decor: "🪐" // 星球
+        },
+        { 
+            name: "Candy", 
+            bg: "bg-[#FCE4EC]",
+            floor: "bg-[#F8BBD0]",
+            accent: "border-[#EC407A]",
+            decor: "🍭" // 糖果
+        }
+    ];
+    const currentScene = SCENES[sceneIndex];
+
+    const toggleScene = () => {
+        setSceneIndex((prev) => (prev + 1) % SCENES.length);
+        speak(SCENES[(sceneIndex + 1) % SCENES.length].name, 'en-US');
+    };
+
+    // --- 拖曳核心邏輯 (解決手機難拖問題) ---
+    const handleDragStart = (e, id, currentX, currentY) => {
+        e.preventDefault(); // 阻止滾動
+        e.stopPropagation();
+        
+        // 計算手指點擊位置與物件左上角的差距
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // 為了讓手指不遮住物品，我們讓物品稍微上浮
+        dragOffset.current = {
+            x: clientX - currentX,
+            y: clientY - currentY 
+        };
+        setDraggingId(id);
+    };
+
+    const handleDragMove = (e) => {
+        if (!draggingId || !containerRef.current) return;
+        e.preventDefault(); // 絕對禁止滾動
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const rect = containerRef.current.getBoundingClientRect(); // 房間容器位置
+
+        // 計算新位置 (相對於房間容器)
+        // 算法：(游標絕對位置 - 容器左上角) - (原本點擊的偏移量)
+        let newX = (clientX - rect.left) - (dragOffset.current.x % 60); // 簡化偏移
+        let newY = (clientY - rect.top) - (dragOffset.current.y % 60);
+
+        // 簡單的邊界檢查
+        if (newX < 0) newX = 0;
+        if (newY < 0) newY = 0;
+        if (newX > rect.width - 60) newX = rect.width - 60;
+        if (newY > rect.height - 60) newY = rect.height - 60;
+
+        // 判斷是否在垃圾桶區域 (下方 100px)
+        const isTrash = clientY > (window.innerHeight - 140);
+
+        // 即時更新 DOM (效能優化)
+        const el = document.getElementById(`item-${draggingId}`);
+        if(el) {
+            el.style.left = `${newX}px`;
+            el.style.top = `${newY}px`;
+            el.style.opacity = isTrash ? '0.5' : '1';
+            el.style.transform = isTrash ? 'scale(0.8)' : 'scale(1.2)';
+        }
+    };
+
+    const handleDragEnd = (e) => {
+        if (!draggingId) return;
+        
+        // 判斷是否刪除
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+        if (clientY > (window.innerHeight - 140)) {
+            removeFromRoom(draggingId);
+        } else {
+            // 儲存位置
+            const el = document.getElementById(`item-${draggingId}`);
+            if (el) {
+                const x = parseFloat(el.style.left);
+                const y = parseFloat(el.style.top);
+                updateItemPosition(draggingId, x, y);
+                el.style.transform = 'scale(1)'; // 恢復大小
+            }
+        }
+        setDraggingId(null);
+    };
+
+    return (
+        <div className="h-[90vh] flex flex-col pb-4 overflow-hidden relative select-none">
+             {/* 頂部控制列 */}
+             <div className="flex justify-between items-center px-4 py-2 bg-white/80 backdrop-blur z-20 shadow-sm">
+                 <h2 className="text-xl font-black text-gray-700">{p.name}'s Room</h2>
+                 <div className="flex gap-2">
+                    <button onClick={toggleScene} className="bg-white border-2 border-gray-300 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95">
+                        🎨 Theme
+                    </button>
+                    <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-3 py-1 rounded-full text-xs font-bold shadow-md active:scale-95">
+                        🛍️ Shop
+                    </button>
+                 </div>
+             </div>
+
+             {/* 房間畫布 */}
+             <div 
+                ref={containerRef}
+                className={`flex-1 relative overflow-hidden transition-colors duration-500`}
+                onTouchMove={handleDragMove}
+                onTouchEnd={handleDragEnd}
+                onMouseMove={handleDragMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+             >
+                {/* 背景裝飾層 (牆壁 + 地板) */}
+                <div className={`absolute inset-0 ${currentScene.bg} -z-20`}></div>
+                <div className={`absolute bottom-0 left-0 right-0 h-[35%] ${currentScene.floor} -z-10 border-t-4 border-black/10`}></div>
+                
+                {/* 牆壁裝飾 (固定) */}
+                <div className="absolute top-10 left-10 text-6xl opacity-80 select-none pointer-events-none filter drop-shadow-sm">
+                    {currentScene.decor}
+                </div>
+                {/* 地毯效果 (CSS) */}
+                <div className="absolute bottom-[5%] left-1/2 -translate-x-1/2 w-48 h-24 bg-black/5 rounded-[100%] pointer-events-none transform scale-x-150 blur-sm"></div>
+
+                {/* 提示 */}
+                {items.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 pointer-events-none">
+                        <span className="text-xl font-black opacity-50">Empty Room</span>
+                        <span className="text-sm">Tap items below to add!</span>
+                    </div>
+                )}
+
+                {/* 物品層 */}
+                {items.map(item => {
+                    const product = SHOP_ITEMS.find(p => p.id === item.itemId);
+                    if (!product) return null;
+                    return (
+                        <div
+                            id={`item-${item.id}`}
+                            key={item.id}
+                            className="absolute text-[4rem] transition-transform cursor-move"
+                            style={{ 
+                                left: item.x, 
+                                top: item.y,
+                                touchAction: 'none', // 關鍵：禁止瀏覽器處理觸控
+                                zIndex: draggingId === item.id ? 100 : 10
+                            }}
+                            onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)}
+                            onTouchStart={(e) => handleDragStart(e, item.id, item.x, item.y)}
+                        >
+                            <div className="drop-shadow-xl filter hover:brightness-110">
+                                {product.emoji}
+                            </div>
+                        </div>
+                    );
+                })}
+             </div>
+
+             {/* 底部物品欄 (兼垃圾桶) */}
+             <div className={`h-32 transition-colors duration-300 ${draggingId ? 'bg-red-100 border-t-4 border-red-400' : 'bg-white border-t-4 border-[#C3B091]'}`}>
+                {draggingId ? (
+                    // 拖曳中顯示垃圾桶提示
+                    <div className="h-full flex flex-col items-center justify-center text-red-500 animate-pulse">
+                        <Trash2 size={48} />
+                        <span className="font-black text-lg">Drop here to remove</span>
+                    </div>
+                ) : (
+                    // 正常顯示物品欄
+                    <div className="h-full overflow-x-auto flex items-center px-4 gap-3 no-scrollbar">
+                        {myInventory.length === 0 ? (
+                            <div className="w-full text-center text-gray-400 text-sm font-bold">
+                                No items yet. Go Shopping!
+                            </div>
+                        ) : (
+                            myInventory.map((item, idx) => (
+                                <button 
+                                    key={`${item.id}-${idx}`}
+                                    onClick={() => addToRoom(item.id)}
+                                    className="flex-shrink-0 w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center text-4xl shadow-sm border-2 border-gray-200 hover:border-[#55C1DE] hover:bg-[#E0F7FA] active:scale-95 transition-all"
+                                >
+                                    {item.emoji}
+                                </button>
+                            ))
+                        )}
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+  };
 
   const GameScreen = ({ type }) => {
     const { q, options, isCorrect, spelling, showAnswer, mistakes } = gameState;

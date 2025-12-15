@@ -1273,191 +1273,202 @@ const App = () => {
     </div>
   );
 
-  // --- 新增：房間布置元件 ---
+ // 1. 將物品加入房間 (隨機微調位置，避免重疊)
+  const addToRoom = (itemId) => {
+     const newItem = {
+        id: Date.now() + Math.random(), // 確保唯一 ID
+        itemId: itemId,
+        x: 100 + (Math.random() * 50),  // 預設出現在左上偏中
+        y: 100 + (Math.random() * 50)
+     };
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: [...(prev[user] || []), newItem]
+     }));
+     speak("Plop!", 'en-US'); // 音效提示
+  };
+
+  // 2. 更新物品位置
+  const updateItemPosition = (uniqueId, x, y) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
+     }));
+  };
+
+  // 3. 從房間移除
+  const removeFromRoom = (uniqueId) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].filter(i => i.id !== uniqueId)
+     }));
+     speak("Bye bye!", 'en-US');
+  };
+
+  // --- 全新的房間介面 (整合 Inventory) ---
   const RoomScreen = () => {
     const items = roomItems[user] || [];
+    const ownedItemIds = inventory[user] || [];
+    
+    // 取得實際擁有物品的詳細資料
+    const myInventory = ownedItemIds.map(id => SHOP_ITEMS.find(i => i.id === id)).filter(Boolean);
+
+    // 拖曳狀態管理
+    const [draggingId, setDraggingId] = useState(null);
+    const [offset, setOffset] = useState({ x: 0, y: 0 });
     const containerRef = useRef(null);
-    const [draggingId, setDraggingId] = useRef(null); // 使用 ref 避免大量 re-render
 
-    // 簡單的拖曳邏輯 (Pointer events 支援觸控與滑鼠)
-    const handlePointerDown = (e, uniqueId) => {
-        e.preventDefault();
-        draggingId.current = uniqueId;
-    };
-
-    const handlePointerMove = (e) => {
-        if (!draggingId.current || !containerRef.current) return;
-        e.preventDefault();
+    // 開始拖曳
+    const handlePointerDown = (e, item) => {
+        e.preventDefault(); // 防止手機滾動
+        const rect = e.currentTarget.getBoundingClientRect();
+        const containerRect = containerRef.current.getBoundingClientRect();
         
-        const rect = containerRef.current.getBoundingClientRect();
+        // 計算游標點擊點與物件左上角的差距，讓拖曳更自然
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        // 計算相對位置
-        const x = clientX - rect.left - 24; // -24 是為了讓手指在圖示中心
-        const y = clientY - rect.top - 24;
-
-        // 直接操作 DOM 提升效能，放下時再存 state
-        const el = document.getElementById(`item-${draggingId.current}`);
-        if(el) {
-            el.style.left = `${x}px`;
-            el.style.top = `${y}px`;
-        }
+        setOffset({
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        });
+        setDraggingId(item.id);
     };
 
-    const handlePointerUp = (e) => {
-        if (!draggingId.current) return;
-        
-        const rect = containerRef.current.getBoundingClientRect();
-        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-        const x = clientX - rect.left - 24;
-        const y = clientY - rect.top - 24;
+    // 拖曳中
+    const handlePointerMove = (e) => {
+        if (!draggingId || !containerRef.current) return;
+        e.preventDefault();
 
-        updateItemPosition(draggingId.current, x, y);
-        draggingId.current = null;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const containerRect = containerRef.current.getBoundingClientRect();
+
+        // 計算新座標 (游標位置 - 容器偏移 - 物件內部偏移)
+        let newX = clientX - containerRect.left - offset.x;
+        let newY = clientY - containerRect.top - offset.y;
+
+        // 邊界限制 (不讓物品拖出房間)
+        const maxX = containerRect.width - 60; // 假設物品寬度約60
+        const maxY = containerRect.height - 60;
+        
+        if (newX < 0) newX = 0;
+        if (newY < 0) newY = 0;
+        if (newX > maxX) newX = maxX;
+        if (newY > maxY) newY = maxY;
+
+        // 直接更新 DOM 效能較好，但為了簡單這裡直接更新 State (React 18 效能通常足夠)
+        updateItemPosition(draggingId, newX, newY);
+    };
+
+    // 結束拖曳
+    const handlePointerUp = () => {
+        setDraggingId(null);
     };
 
     return (
-        <div className="h-[80vh] w-full p-4 relative flex flex-col">
-             <div className="flex justify-between items-center mb-4">
-                 <h2 className="text-3xl font-black text-gray-700">{p.name}'s Room</h2>
-                 <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-4 py-2 rounded-full font-bold flex items-center gap-2">
-                    <Plus size={16}/> Add Items
-                 </button>
+        <div className="h-[80vh] flex flex-col pb-24">
+             {/* 標題區 */}
+             <div className="flex justify-between items-center mb-2 px-2">
+                 <h2 className="text-2xl font-black text-gray-700">{p.name}'s Room</h2>
+                 <div className="text-sm font-bold text-gray-400">Drag to move • Tap below to add</div>
              </div>
 
+             {/* 房間畫布區 (Canvas) */}
              <div 
                 ref={containerRef}
                 className="flex-1 bg-white rounded-[2rem] border-8 border-[#C3B091] shadow-inner relative overflow-hidden touch-none"
-                style={{ backgroundImage: 'radial-gradient(#D7CCC8 2px, transparent 2px)', backgroundSize: '40px 40px' }}
+                style={{ 
+                    backgroundImage: 'radial-gradient(#D7CCC8 2px, transparent 2px)', 
+                    backgroundSize: '40px 40px',
+                    cursor: draggingId ? 'grabbing' : 'default'
+                }}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
-                onPointerLeave={handlePointerUp}
+                onPointerLeave={handlePointerUp} // 離開範圍也算放開
              >
+                {/* 如果房間是空的提示 */}
                 {items.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-black text-2xl pointer-events-none">
-                        Empty Room... Go Shopping!
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 pointer-events-none">
+                        <Home size={48} className="mb-2 opacity-50"/>
+                        <span className="font-black text-xl">Empty Room</span>
+                        <span className="text-sm">Tap items below to decorate!</span>
                     </div>
                 )}
+
+                {/* 房間內的物品 */}
                 {items.map(item => {
                     const product = SHOP_ITEMS.find(p => p.id === item.itemId);
                     if (!product) return null;
+                    const isDragging = draggingId === item.id;
+
                     return (
                         <div
-                            id={`item-${item.id}`}
                             key={item.id}
-                            onPointerDown={(e) => handlePointerDown(e, item.id)}
-                            className="absolute text-5xl cursor-grab active:cursor-grabbing select-none hover:scale-110 transition-transform"
-                            style={{ left: item.x, top: item.y }}
+                            onPointerDown={(e) => handlePointerDown(e, item)}
+                            className={`absolute flex flex-col items-center justify-center select-none transition-transform ${isDragging ? 'scale-125 z-50 cursor-grabbing' : 'cursor-grab hover:scale-110 z-10'}`}
+                            style={{ 
+                                left: item.x, 
+                                top: item.y,
+                                width: '60px',
+                                height: '60px',
+                                touchAction: 'none' // 關鍵：防止觸控時捲動頁面
+                            }}
                         >
-                            {product.emoji}
-                            {/* 刪除按鈕 (長按或懸停顯示也可，這裡簡化為點擊顯示右上角小按鈕) */}
-                            <div 
-                                onClick={(e) => { e.stopPropagation(); removeFromRoom(item.id); }}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 hover:opacity-100 cursor-pointer"
+                            <span className="text-5xl drop-shadow-md">{product.emoji}</span>
+                            
+                            {/* 只有選取或拖曳時顯示移除按鈕 */}
+                            <button 
+                                onPointerDown={(e) => {
+                                    e.stopPropagation(); // 防止觸發拖曳
+                                    removeFromRoom(item.id);
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-400 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm opacity-0 hover:opacity-100 active:opacity-100 transition-opacity"
                             >
-                                <Trash2 size={12}/>
-                            </div>
+                                <Trash2 size={12} />
+                            </button>
                         </div>
                     );
                 })}
              </div>
-             <p className="text-center text-gray-400 mt-2 text-sm">Drag items to move • Shop for more!</p>
+
+             {/* 底部 Inventory (物品欄) */}
+             <div className="mt-4">
+                <div className="flex items-center gap-2 mb-2 px-2">
+                    <ShoppingBag size={18} className="text-[#55C1DE]"/>
+                    <span className="font-black text-gray-600">My Decorations</span>
+                </div>
+                
+                <div className="bg-white/80 backdrop-blur rounded-2xl p-4 shadow-sm border-2 border-white overflow-x-auto">
+                    <div className="flex gap-4 min-w-min">
+                        {myInventory.length === 0 ? (
+                            <div className="text-gray-400 text-sm font-bold w-full text-center py-2">
+                                Go to Shop to buy items first! 🛍️
+                            </div>
+                        ) : (
+                            myInventory.map((item, idx) => (
+                                <button 
+                                    key={`${item.id}-${idx}`}
+                                    onClick={() => addToRoom(item.id)}
+                                    className="flex-shrink-0 w-16 h-16 bg-[#FDF6E3] rounded-xl flex items-center justify-center text-3xl shadow-[2px_2px_0px_0px_rgba(0,0,0,0.1)] active:translate-y-1 active:shadow-none border-2 border-transparent hover:border-[#55C1DE] transition-all"
+                                >
+                                    {item.emoji}
+                                </button>
+                            ))
+                        )}
+                        {/* 連結到商店的快捷按鈕 */}
+                        <button 
+                            onClick={() => setView('shop')}
+                            className="flex-shrink-0 w-16 h-16 bg-[#E0F7FA] rounded-xl flex flex-col items-center justify-center text-[#006064] font-bold text-xs border-2 border-dashed border-[#00BCD4]"
+                        >
+                            <Plus size={20} className="mb-1"/>
+                            Shop
+                        </button>
+                    </div>
+                </div>
+             </div>
         </div>
     );
   };
-
-  if (!user) return <CoverScreen />;
-
-  return (
-    <div className="min-h-screen font-sans bg-[#FDF6E3] pb-safe relative">
-      <LeafPattern />
-      <Header />
-      <main className="pt-6 px-4 max-w-2xl mx-auto relative z-10 pb-32">
-        {view === 'home' && (
-           <div className="grid gap-6 animate-fade-in">
-              <div className="bg-white rounded-[2.5rem] p-6 shadow-sm flex items-center gap-6 border-4 border-white relative overflow-hidden">
-                 <div className={`w-24 h-24 rounded-full flex items-center justify-center text-6xl ${p.theme} border-4 border-white shadow-md`}>{p.avatar}</div>
-                 <div>
-                    <div className="text-[#78B159] font-black text-sm uppercase tracking-widest">PASSPORT</div>
-                    <h2 className="text-3xl font-black text-gray-800">{p.name}</h2>
-                    <div className="text-gray-400 font-bold text-sm mt-1">Island Resident</div>
-                 </div>
-              </div>
-
-              {(() => {
-                const { current, total } = getProgressStats();
-                const percent = Math.round((current / total) * 100) || 0;
-                return (
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-white mb-2">
-                    <div className="flex justify-between text-sm font-bold text-gray-500 mb-1">
-                      <span>Collection Progress</span>
-                      <span>{current} / {total} Words</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                       <div className={`h-full ${p.theme} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
-                    </div>
-                    <div className="text-right text-xs font-black text-[#78B159] mt-1">{percent}% Complete!</div>
-                  </div>
-                );
-              })()}
-
-              <div className="bg-white/60 backdrop-blur rounded-[2rem] p-6">
-                 <h3 className="text-[#78B159] font-black mb-4 flex items-center gap-2"><Trees size={20}/> Word Cards</h3>
-                 <div className="grid grid-cols-6 gap-2">
-                    {ALPHABET.map(l => (
-                       <button key={l} onClick={() => loadSmartWords(l)} className="aspect-square rounded-xl bg-white font-black text-gray-600 shadow-sm hover:bg-[#78B159] hover:text-white transition-colors">
-                          {l}
-                       </button>
-                    ))}
-                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <button onClick={() => initGame('listen')} className="bg-white aspect-square rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#55C1DE]">
-                    <div className="w-16 h-16 bg-[#B3E5FC] rounded-3xl flex items-center justify-center text-[#0277BD] text-3xl"><Volume2 /></div>
-                    <span className="font-black text-gray-600">Listen</span>
-                 </button>
-                 <button onClick={() => initGame('spell')} className="bg-white aspect-square rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#CE93D8]">
-                    <div className="w-16 h-16 bg-[#E1BEE7] rounded-3xl flex items-center justify-center text-[#7B1FA2] text-3xl font-black">Abc</div>
-                    <span className="font-black text-gray-600">Spell</span>
-                 </button>
-                 <button onClick={() => initGame('fill')} className="col-span-2 bg-white h-24 rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex items-center justify-center gap-4 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#FFCC80]">
-                    <div className="w-12 h-12 bg-[#FFE0B2] rounded-3xl flex items-center justify-center text-[#EF6C00] text-2xl font-black">___</div>
-                    <span className="font-black text-gray-600 text-xl">Fill-in</span>
-                 </button>
-              </div>
-           </div>
-        )}
-
-        {view === 'learn' && <LearnScreen />}
-        {view === 'room' && <RoomScreen />}
-        {view.startsWith('game-') && <GameScreen type={view.split('-')[1]} />}
-        {view === 'shop' && <ShopScreen />}
-      </main>
-
-      {view !== 'cover' && (
-         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#333] px-6 py-3 rounded-[3rem] shadow-2xl flex gap-6 z-50 border-4 border-[#555]">
-            <button onClick={() => setView('home')} className={`p-2 rounded-full ${view === 'home' ? 'text-[#78B159]' : 'text-gray-400 hover:text-white'}`}><Home size={28}/></button>
-            <button onClick={() => setView('room')} className={`p-2 rounded-full ${view === 'room' ? 'text-[#55C1DE]' : 'text-gray-400 hover:text-white'}`}><Move size={28}/></button>
-            <button onClick={() => setView('shop')} className={`p-2 rounded-full ${view === 'shop' ? 'text-[#F4E04D]' : 'text-gray-400 hover:text-white'}`}><ShoppingBag size={28}/></button>
-            <button onClick={() => setUser(null)} className="p-2 rounded-full text-gray-400 hover:text-white"><Settings size={28}/></button>
-         </div>
-      )}
-
-      <style jsx global>{`
-        @keyframes bounce-slow { 0%, 100% { transform: translateY(-5%); } 50% { transform: translateY(5%); } }
-        .animate-bounce-slow { animation: bounce-slow 2s infinite; }
-        .animate-pop-up { animation: pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
-        .animate-fade-in { animation: fade 0.5s ease-out; }
-        .animate-slide-up { animation: slide 0.5s ease-out; }
-        @keyframes pop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slide { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-      `}</style>
-    </div>
-  );
-};
 
 export default App;

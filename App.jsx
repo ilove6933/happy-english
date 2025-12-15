@@ -793,8 +793,15 @@ const App = () => {
     speak(letter, 'en-US');
   };
 
+  // 修改原本的 playWordSound，加入賺錢邏輯
   const playWordSound = (word) => {
       speakBilingual(word.t, word.tr);
+      
+      // [新增] 每天/每次點擊學習卡片，有 30% 機率掉落 1 Bell (避免洗錢，或設定上限)
+      if (Math.random() > 0.7) {
+          setStars(prev => ({ ...prev, [user]: prev[user] + 1 }));
+          // 可以加一個小音效提示 "Coin!"
+      }
   };
 
   const playSentence = (word) => {
@@ -816,25 +823,46 @@ const App = () => {
     }
   };
 
+// --- 修改後的 initGame：只考學過的字 ---
   const initGame = (type) => {
     const profile = PROFILES[user];
-    const userMastered = masteredWords[user] || [];
+    
+    // 1. 取得該使用者「看過」的所有單字清單 (從 learningHistory 撈)
+    const userHistory = learningHistory[user] || {};
+    // 將所有字母看過的單字合併成一個陣列
+    const learnedWordsList = Object.values(userHistory).flat();
 
-    const allPool = ALPHABET.flatMap(l => RAW_VOCAB[l] || []).filter(w => w.l <= profile.levelLimit);
-    if (allPool.length === 0) return;
-
-    const unmasteredPool = allPool.filter(w => !userMastered.includes(w.t));
-    let targetPool = unmasteredPool;
-    if (unmasteredPool.length === 0 || Math.random() > 0.8) {
-       targetPool = allPool;
+    // 2. 為了避免題目太少（剛開始學），我們設定一個規則：
+    // 如果學過的字少於 5 個，就強制混入一些簡單的 Level 1 單字，或者提示去學習
+    let targetPool = [];
+    
+    // 從 RAW_VOCAB 撈出完整的單字物件 (因為 history 只存了單字文字 text)
+    const allValidWords = ALPHABET.flatMap(l => RAW_VOCAB[l] || []).filter(w => w.l <= profile.levelLimit);
+    
+    if (learnedWordsList.length < 5) {
+        // [情境 A] 學得太少：提示去學習
+        speak("Go learn some words first!", 'en-US');
+        // 自動導向到學習頁面，或者只讓他們玩少量的字
+        // 這裡我們選擇導向到 'learn' 並開啟 'A'
+        loadSmartWords('A'); 
+        return; 
+    } else {
+        // [情境 B] 正常模式：只考學過的字
+        targetPool = allValidWords.filter(w => learnedWordsList.includes(w.t));
     }
 
+    // 防呆：萬一過濾後沒字了 (理論上被上面擋掉了)
+    if (targetPool.length === 0) targetPool = allValidWords.filter(w => w.l === 1);
+
+    // --- 以下邏輯維持原樣，但 source 改為 targetPool ---
     const target = targetPool[Math.floor(Math.random() * targetPool.length)];
     let newState = { q: target, isCorrect: null, mistakes: 0, showAnswer: false };
 
+    // 產生干擾選項 (干擾項可以是沒學過的字，這樣比較好猜，或是學過的字增加難度)
+    // 這裡設定：干擾項從「所有單字」裡抓，這樣如果還沒學過干擾項，小朋友很容易排除它，增加信心
     if (type === 'listen') {
       const count = user === 'luca' ? 3 : 4;
-      const others = allPool.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, count - 1);
+      const others = allValidWords.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, count - 1);
       newState.options = [target, ...others].sort(() => 0.5 - Math.random());
       setTimeout(() => speak(target.t, 'en-US'), 300);
     } 
@@ -862,7 +890,8 @@ const App = () => {
       setTimeout(() => speak(target.t, 'en-US'), 300);
     }
     else if (type === 'fill') {
-      const others = allPool.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, 3);
+      // 填空題的干擾項也建議混入一點學過的，增加鑑別度
+      const others = allValidWords.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, 3);
       newState.options = [target, ...others].sort(() => 0.5 - Math.random());
       if (user === 'luca') {
           const fullSent = target.s.replace('___', target.t);

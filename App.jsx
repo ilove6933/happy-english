@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Volume2, Home, Settings, ShoppingBag, 
   Trophy, Ghost, RefreshCw, Star, ArrowLeft, 
-  Trash2, Plus, Move, Leaf, Trees, Sun, Cloud, Moon
+  Trash2, Plus, Move, Leaf, Trees, GraduationCap, PlayCircle, Check
 } from 'lucide-react';
 
 // --- 1. A-Z 資料庫 (完整版) ---
@@ -721,6 +721,16 @@ const App = () => {
     return saved ? JSON.parse(saved) : { luca: {}, yuna: {} };
   });
 
+  // [New] State for Random Class Session
+  const [classSession, setClassSession] = useState({
+    words: [], // 26 words for the session
+    currentIndex: 0,
+    quizMode: false,
+    quizQueue: [], // 5 questions
+    quizIndex: 0,
+    quizScore: 0
+  });
+
   useEffect(() => {
     localStorage.setItem('happyAbcProgress', JSON.stringify(masteredWords));
   }, [masteredWords]);
@@ -757,10 +767,8 @@ const App = () => {
     speak(`Hi ${PROFILES[uid].name}!`, 'en-US');
   };
 
-  // --- 學習機制優化：點擊卡片掉錢 ---
   const playWordSound = (word) => {
       speakBilingual(word.t, word.tr);
-      // 機率掉錢，增加學習動機
       if (Math.random() > 0.6) {
           setStars(prev => ({ ...prev, [user]: prev[user] + 1 }));
       }
@@ -816,23 +824,20 @@ const App = () => {
     }
   };
 
-  // --- 遊戲邏輯優化：優先考學過的字 ---
   const initGame = (type) => {
     const profile = PROFILES[user];
     const userHistory = learningHistory[user] || {};
     const learnedWordsList = Object.values(userHistory).flat();
     const allValidWords = ALPHABET.flatMap(l => RAW_VOCAB[l] || []).filter(w => w.l <= profile.levelLimit);
     
-    // 如果學太少，強制跳轉去學習
     if (learnedWordsList.length < 3) {
         speak("Go learn some words first!", 'en-US');
         loadSmartWords('A'); 
         return; 
     }
 
-    // 題庫優先選學過的
     let targetPool = allValidWords.filter(w => learnedWordsList.includes(w.t));
-    if (targetPool.length === 0) targetPool = allValidWords; // Fallback
+    if (targetPool.length === 0) targetPool = allValidWords;
 
     const target = targetPool[Math.floor(Math.random() * targetPool.length)];
     let newState = { q: target, isCorrect: null, mistakes: 0, showAnswer: false };
@@ -954,7 +959,213 @@ const App = () => {
       }
   };
 
-  // --- 房間管理 ---
+  // --- [New Logic] Random Class Generator ---
+  const startRandomClass = () => {
+      const profile = PROFILES[user];
+      const userHistory = learningHistory[user] || {};
+      const learnedWordsList = Object.values(userHistory).flat();
+      let classWords = [];
+
+      // Pick one word from each letter
+      ALPHABET.forEach(letter => {
+          const letterWords = RAW_VOCAB[letter] || [];
+          const validWords = letterWords.filter(w => w.l <= profile.levelLimit);
+          
+          if (validWords.length > 0) {
+              // Prioritize unlearned words
+              const unlearned = validWords.filter(w => !learnedWordsList.includes(w.t));
+              let picked;
+              if (unlearned.length > 0) {
+                  picked = unlearned[Math.floor(Math.random() * unlearned.length)];
+                  // Add to history now (mark as seen)
+                  const seenForLetter = userHistory[letter] || [];
+                  const newHistory = { ...userHistory, [letter]: [...seenForLetter, picked.t] };
+                  setLearningHistory(prev => ({...prev, [user]: newHistory}));
+              } else {
+                  // If all learned, pick random from valid
+                  picked = validWords[Math.floor(Math.random() * validWords.length)];
+              }
+              classWords.push(picked);
+          }
+      });
+
+      setClassSession({
+          words: classWords,
+          currentIndex: 0,
+          quizMode: false,
+          quizQueue: [],
+          quizIndex: 0,
+          quizScore: 0
+      });
+      setView('class-learning');
+      
+      // Auto play first word
+      if(classWords.length > 0) {
+          setTimeout(() => playWordSound(classWords[0]), 500);
+      }
+  };
+
+  // --- [New Logic] Start Post-Class Quiz ---
+  const startClassQuiz = () => {
+      // Generate 5 questions from the 26 words
+      const quizPool = [...classSession.words].sort(() => 0.5 - Math.random()).slice(0, 5);
+      const queue = quizPool.map(word => {
+          // Randomly assign a game type
+          const types = ['listen', 'spell', 'fill'];
+          const type = types[Math.floor(Math.random() * types.length)];
+          
+          // Generate options/state for this question (similar to initGame)
+          let options = [];
+          let spelling = [];
+          const allPool = classSession.words; // Options come from the class words too
+
+          if (type === 'listen') {
+              const count = user === 'luca' ? 3 : 4;
+              const others = allPool.filter(w => w.t !== word.t).sort(() => 0.5 - Math.random()).slice(0, count - 1);
+              options = [word, ...others].sort(() => 0.5 - Math.random());
+          } 
+          else if (type === 'spell') {
+              if (user === 'luca') {
+                  const correct = word.t[0].toUpperCase();
+                  const others = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').filter(c => c !== correct).sort(() => 0.5 - Math.random()).slice(0, 2);
+                  options = [correct, ...others].sort(() => 0.5 - Math.random());
+              } else {
+                  const correctChars = word.t.toUpperCase().split('');
+                  const len = correctChars.length;
+                  const numToReveal = Math.ceil(len / 2);
+                  const revealedIndices = new Set();
+                  while(revealedIndices.size < numToReveal) {
+                      revealedIndices.add(Math.floor(Math.random() * len));
+                  }
+                  spelling = correctChars.map((char, idx) => revealedIndices.has(idx) ? char : '');
+                  const hiddenChars = correctChars.filter((_, idx) => !revealedIndices.has(idx));
+                  const randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').sort(() => 0.5 - Math.random()).slice(0, 3);
+                  options = [...hiddenChars, ...randomChars].sort(() => 0.5 - Math.random());
+              }
+          }
+          else if (type === 'fill') {
+              const others = allPool.filter(w => w.t !== word.t).sort(() => 0.5 - Math.random()).slice(0, 3);
+              options = [word, ...others].sort(() => 0.5 - Math.random());
+          }
+
+          return { q: word, type, options, spelling, isCorrect: false, mistakes: 0, showAnswer: false };
+      });
+
+      setClassSession(prev => ({ ...prev, quizMode: true, quizQueue: queue, quizIndex: 0, quizScore: 0 }));
+      speak("Quiz Time!", 'en-US');
+      
+      // Speak first question
+      const firstQ = queue[0];
+      setTimeout(() => {
+          if (firstQ.type === 'listen') speak(firstQ.q.t, 'en-US');
+          else if (firstQ.type === 'spell') speak(firstQ.q.t, 'en-US');
+          else if (firstQ.type === 'fill' && user === 'luca') speak(firstQ.q.s.replace('___', firstQ.q.t), 'en-US');
+      }, 500);
+  };
+
+  const handleClassQuizAnswer = (answerOrChar) => {
+      const currentQ = classSession.quizQueue[classSession.quizIndex];
+      // Logic mirrors checkAnswer/handleSpelling but updates quiz queue state locally
+      // Simplified for brevity: if correct, move next. if wrong, show error.
+      
+      if (currentQ.isCorrect || currentQ.showAnswer) return;
+
+      let isCorrect = false;
+      
+      if (currentQ.type === 'listen' || currentQ.type === 'fill') {
+          if (answerOrChar.t === currentQ.q.t) isCorrect = true;
+      } else if (currentQ.type === 'spell') {
+          // Spell logic handling (simplified for quiz flow)
+          if (user === 'luca') {
+              if (answerOrChar === currentQ.q.t[0].toUpperCase()) isCorrect = true;
+              else speak(answerOrChar.toLowerCase(), 'en-US');
+          } else {
+              // Yuna spelling logic
+              const newSpelling = [...currentQ.spelling];
+              const firstEmpty = newSpelling.findIndex(c => c === '');
+              if (firstEmpty !== -1) {
+                  newSpelling[firstEmpty] = answerOrChar;
+                  // Update local state queue
+                  const newQueue = [...classSession.quizQueue];
+                  newQueue[classSession.quizIndex].spelling = newSpelling;
+                  setClassSession(prev => ({...prev, quizQueue: newQueue}));
+                  
+                  if (!newSpelling.includes('')) {
+                      if (newSpelling.join('') === currentQ.q.t.toUpperCase()) isCorrect = true;
+                      else {
+                          speak("Try again", 'en-US');
+                          setTimeout(() => {
+                              const resetQueue = [...classSession.quizQueue];
+                              // Reset only filled chars not hints
+                              const target = currentQ.q.t.toUpperCase();
+                              resetQueue[classSession.quizIndex].spelling = resetQueue[classSession.quizIndex].spelling.map((c, i) => c === target[i] ? c : '');
+                              setClassSession(prev => ({...prev, quizQueue: resetQueue}));
+                          }, 1000);
+                          return;
+                      }
+                  } else {
+                      speak(answerOrChar.toLowerCase(), 'en-US');
+                      return;
+                  }
+              }
+          }
+      }
+
+      if (isCorrect) {
+          speak("Correct!", 'en-US');
+          const newQueue = [...classSession.quizQueue];
+          newQueue[classSession.quizIndex].isCorrect = true;
+          
+          // Add mastery if needed
+          if (!masteredWords[user].includes(currentQ.q.t)) {
+              setMasteredWords(prev => ({ ...prev, [user]: [...prev[user], currentQ.q.t] }));
+          }
+
+          setClassSession(prev => ({ ...prev, quizQueue: newQueue, quizScore: prev.quizScore + 1 }));
+          
+          setTimeout(() => {
+              if (classSession.quizIndex < 4) {
+                  const nextIdx = classSession.quizIndex + 1;
+                  setClassSession(prev => ({ ...prev, quizIndex: nextIdx }));
+                  const nextQ = classSession.quizQueue[nextIdx];
+                  if (nextQ.type === 'listen' || nextQ.type === 'spell') speak(nextQ.q.t, 'en-US');
+                  else if (nextQ.type === 'fill' && user === 'luca') speak(nextQ.q.s.replace('___', nextQ.q.t), 'en-US');
+              } else {
+                  // Quiz Over
+                  setView('class-summary');
+                  const bonus = (classSession.quizScore + 1) * 5; // Calculate bonus
+                  setStars(prev => ({...prev, [user]: prev[user] + bonus}));
+                  speak(`Class finished! You got ${classSession.quizScore + 1} points!`, 'en-US');
+              }
+          }, 1000);
+      } else {
+          // Wrong answer
+          const newQueue = [...classSession.quizQueue];
+          newQueue[classSession.quizIndex].mistakes += 1;
+          if (newQueue[classSession.quizIndex].mistakes >= 2) {
+              newQueue[classSession.quizIndex].showAnswer = true;
+              speak(`The answer is ${currentQ.q.t}`, 'en-US');
+              // Move to next after delay
+              setTimeout(() => {
+                  if (classSession.quizIndex < 4) {
+                      const nextIdx = classSession.quizIndex + 1;
+                      setClassSession(prev => ({ ...prev, quizQueue: newQueue, quizIndex: nextIdx }));
+                      const nextQ = classSession.quizQueue[nextIdx];
+                      if (nextQ.type === 'listen' || nextQ.type === 'spell') speak(nextQ.q.t, 'en-US');
+                  } else {
+                      setView('class-summary');
+                      const bonus = classSession.quizScore * 5;
+                      setStars(prev => ({...prev, [user]: prev[user] + bonus}));
+                  }
+              }, 2000);
+          } else {
+              speak("Try again!", 'en-US');
+          }
+          setClassSession(prev => ({ ...prev, quizQueue: newQueue }));
+      }
+  };
+
+  // --- 房間邏輯 ---
   const updateItemPosition = (uniqueId, x, y) => {
      setRoomItems(prev => ({
         ...prev,
@@ -963,12 +1174,11 @@ const App = () => {
   };
 
   const addToRoom = (itemId) => {
-     // 加入時隨機位置稍微分散
      const newItem = {
         id: Date.now() + Math.random(),
         itemId: itemId,
         x: 100 + (Math.random() * 50), 
-        y: 150 + (Math.random() * 50) // 避開上方牆壁區
+        y: 150 + (Math.random() * 50)
      };
      setRoomItems(prev => ({
         ...prev,
@@ -1038,7 +1248,7 @@ const App = () => {
     </header>
   );
 
-  // --- 全新的房間佈置元件 (Sticker Book Mode) ---
+  // --- 貼紙簿房間 (Sticker Book Mode) ---
   const RoomScreen = () => {
     const items = roomItems[user] || [];
     const ownedItemIds = inventory[user] || [];
@@ -1049,36 +1259,11 @@ const App = () => {
     const containerRef = useRef(null);
     const dragOffset = useRef({ x: 0, y: 0 });
 
-    // 定義 4 種風格場景 (CSS Art)
     const SCENES = [
-        { 
-            name: "Cozy Room", 
-            bg: "bg-[#FFF3E0]",
-            floor: "bg-[#D7CCC8]",
-            accent: "border-[#8D6E63]",
-            decor: "🪟" // 窗戶
-        },
-        { 
-            name: "Garden", 
-            bg: "bg-[#E1F5FE]",
-            floor: "bg-[#C8E6C9]",
-            accent: "border-[#66BB6A]",
-            decor: "🌳" // 樹
-        },
-        { 
-            name: "Space", 
-            bg: "bg-[#1A237E]",
-            floor: "bg-[#283593]",
-            accent: "border-[#5C6BC0]",
-            decor: "🪐" // 星球
-        },
-        { 
-            name: "Candy", 
-            bg: "bg-[#FCE4EC]",
-            floor: "bg-[#F8BBD0]",
-            accent: "border-[#EC407A]",
-            decor: "🍭" // 糖果
-        }
+        { name: "Cozy Room", bg: "bg-[#FFF3E0]", floor: "bg-[#D7CCC8]", accent: "border-[#8D6E63]", decor: "🪟" },
+        { name: "Garden", bg: "bg-[#E1F5FE]", floor: "bg-[#C8E6C9]", accent: "border-[#66BB6A]", decor: "🌳" },
+        { name: "Space", bg: "bg-[#1A237E]", floor: "bg-[#283593]", accent: "border-[#5C6BC0]", decor: "🪐" },
+        { name: "Candy", bg: "bg-[#FCE4EC]", floor: "bg-[#F8BBD0]", accent: "border-[#EC407A]", decor: "🍭" }
     ];
     const currentScene = SCENES[sceneIndex];
 
@@ -1087,50 +1272,29 @@ const App = () => {
         speak(SCENES[(sceneIndex + 1) % SCENES.length].name, 'en-US');
     };
 
-    // --- 拖曳核心邏輯 (解決手機難拖問題) ---
     const handleDragStart = (e, id, currentX, currentY) => {
-        e.preventDefault(); // 阻止滾動
-        e.stopPropagation();
-        
-        // 計算手指點擊位置與物件左上角的差距
+        e.preventDefault(); e.stopPropagation();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        
-        // 為了讓手指不遮住物品，我們讓物品稍微上浮
-        dragOffset.current = {
-            x: clientX - currentX,
-            y: clientY - currentY 
-        };
+        dragOffset.current = { x: clientX - currentX, y: clientY - currentY };
         setDraggingId(id);
     };
 
     const handleDragMove = (e) => {
         if (!draggingId || !containerRef.current) return;
-        e.preventDefault(); // 絕對禁止滾動
-
+        e.preventDefault();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        const rect = containerRef.current.getBoundingClientRect(); // 房間容器位置
-
-        // 計算新位置 (相對於房間容器)
-        // 算法：(游標絕對位置 - 容器左上角) - (原本點擊的偏移量)
-        let newX = (clientX - rect.left) - (dragOffset.current.x % 60); // 簡化偏移
+        const rect = containerRef.current.getBoundingClientRect();
+        let newX = (clientX - rect.left) - (dragOffset.current.x % 60);
         let newY = (clientY - rect.top) - (dragOffset.current.y % 60);
-
-        // 簡單的邊界檢查
-        if (newX < 0) newX = 0;
-        if (newY < 0) newY = 0;
+        if (newX < 0) newX = 0; if (newY < 0) newY = 0;
         if (newX > rect.width - 60) newX = rect.width - 60;
         if (newY > rect.height - 60) newY = rect.height - 60;
-
-        // 判斷是否在垃圾桶區域 (下方 100px)
         const isTrash = clientY > (window.innerHeight - 140);
-
-        // 即時更新 DOM (效能優化)
         const el = document.getElementById(`item-${draggingId}`);
         if(el) {
-            el.style.left = `${newX}px`;
-            el.style.top = `${newY}px`;
+            el.style.left = `${newX}px`; el.style.top = `${newY}px`;
             el.style.opacity = isTrash ? '0.5' : '1';
             el.style.transform = isTrash ? 'scale(0.8)' : 'scale(1.2)';
         }
@@ -1138,19 +1302,16 @@ const App = () => {
 
     const handleDragEnd = (e) => {
         if (!draggingId) return;
-        
-        // 判斷是否刪除
         const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
         if (clientY > (window.innerHeight - 140)) {
             removeFromRoom(draggingId);
         } else {
-            // 儲存位置
             const el = document.getElementById(`item-${draggingId}`);
             if (el) {
                 const x = parseFloat(el.style.left);
                 const y = parseFloat(el.style.top);
                 updateItemPosition(draggingId, x, y);
-                el.style.transform = 'scale(1)'; // 恢復大小
+                el.style.transform = 'scale(1)';
             }
         }
         setDraggingId(null);
@@ -1158,96 +1319,51 @@ const App = () => {
 
     return (
         <div className="h-[90vh] flex flex-col pb-4 overflow-hidden relative select-none">
-             {/* 頂部控制列 */}
              <div className="flex justify-between items-center px-4 py-2 bg-white/80 backdrop-blur z-20 shadow-sm">
                  <h2 className="text-xl font-black text-gray-700">{p.name}'s Room</h2>
                  <div className="flex gap-2">
-                    <button onClick={toggleScene} className="bg-white border-2 border-gray-300 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95">
-                        🎨 Theme
-                    </button>
-                    <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-3 py-1 rounded-full text-xs font-bold shadow-md active:scale-95">
-                        🛍️ Shop
-                    </button>
+                    <button onClick={toggleScene} className="bg-white border-2 border-gray-300 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95">🎨 Theme</button>
+                    <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-3 py-1 rounded-full text-xs font-bold shadow-md active:scale-95">🛍️ Shop</button>
                  </div>
              </div>
-
-             {/* 房間畫布 */}
-             <div 
-                ref={containerRef}
-                className={`flex-1 relative overflow-hidden transition-colors duration-500`}
-                onTouchMove={handleDragMove}
-                onTouchEnd={handleDragEnd}
-                onMouseMove={handleDragMove}
-                onMouseUp={handleDragEnd}
-                onMouseLeave={handleDragEnd}
+             <div ref={containerRef} className={`flex-1 relative overflow-hidden transition-colors duration-500`}
+                onTouchMove={handleDragMove} onTouchEnd={handleDragEnd} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
              >
-                {/* 背景裝飾層 (牆壁 + 地板) */}
                 <div className={`absolute inset-0 ${currentScene.bg} -z-20`}></div>
                 <div className={`absolute bottom-0 left-0 right-0 h-[35%] ${currentScene.floor} -z-10 border-t-4 border-black/10`}></div>
-                
-                {/* 牆壁裝飾 (固定) */}
-                <div className="absolute top-10 left-10 text-6xl opacity-80 select-none pointer-events-none filter drop-shadow-sm">
-                    {currentScene.decor}
-                </div>
-                {/* 地毯效果 (CSS) */}
+                <div className="absolute top-10 left-10 text-6xl opacity-80 select-none pointer-events-none filter drop-shadow-sm">{currentScene.decor}</div>
                 <div className="absolute bottom-[5%] left-1/2 -translate-x-1/2 w-48 h-24 bg-black/5 rounded-[100%] pointer-events-none transform scale-x-150 blur-sm"></div>
-
-                {/* 提示 */}
                 {items.length === 0 && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 pointer-events-none">
                         <span className="text-xl font-black opacity-50">Empty Room</span>
                         <span className="text-sm">Tap items below to add!</span>
                     </div>
                 )}
-
-                {/* 物品層 */}
                 {items.map(item => {
                     const product = SHOP_ITEMS.find(p => p.id === item.itemId);
                     if (!product) return null;
                     return (
-                        <div
-                            id={`item-${item.id}`}
-                            key={item.id}
-                            className="absolute text-[4rem] transition-transform cursor-move"
-                            style={{ 
-                                left: item.x, 
-                                top: item.y,
-                                touchAction: 'none', // 關鍵：禁止瀏覽器處理觸控
-                                zIndex: draggingId === item.id ? 100 : 10
-                            }}
-                            onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)}
-                            onTouchStart={(e) => handleDragStart(e, item.id, item.x, item.y)}
+                        <div id={`item-${item.id}`} key={item.id} className="absolute text-[4rem] transition-transform cursor-move"
+                            style={{ left: item.x, top: item.y, touchAction: 'none', zIndex: draggingId === item.id ? 100 : 10 }}
+                            onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)} onTouchStart={(e) => handleDragStart(e, item.id, item.x, item.y)}
                         >
-                            <div className="drop-shadow-xl filter hover:brightness-110">
-                                {product.emoji}
-                            </div>
+                            <div className="drop-shadow-xl filter hover:brightness-110">{product.emoji}</div>
                         </div>
                     );
                 })}
              </div>
-
-             {/* 底部物品欄 (兼垃圾桶) */}
              <div className={`h-32 transition-colors duration-300 ${draggingId ? 'bg-red-100 border-t-4 border-red-400' : 'bg-white border-t-4 border-[#C3B091]'}`}>
                 {draggingId ? (
-                    // 拖曳中顯示垃圾桶提示
                     <div className="h-full flex flex-col items-center justify-center text-red-500 animate-pulse">
-                        <Trash2 size={48} />
-                        <span className="font-black text-lg">Drop here to remove</span>
+                        <Trash2 size={48} /><span className="font-black text-lg">Drop here to remove</span>
                     </div>
                 ) : (
-                    // 正常顯示物品欄
                     <div className="h-full overflow-x-auto flex items-center px-4 gap-3 no-scrollbar">
                         {myInventory.length === 0 ? (
-                            <div className="w-full text-center text-gray-400 text-sm font-bold">
-                                No items yet. Go Shopping!
-                            </div>
+                            <div className="w-full text-center text-gray-400 text-sm font-bold">No items yet. Go Shopping!</div>
                         ) : (
                             myInventory.map((item, idx) => (
-                                <button 
-                                    key={`${item.id}-${idx}`}
-                                    onClick={() => addToRoom(item.id)}
-                                    className="flex-shrink-0 w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center text-4xl shadow-sm border-2 border-gray-200 hover:border-[#55C1DE] hover:bg-[#E0F7FA] active:scale-95 transition-all"
-                                >
+                                <button key={`${item.id}-${idx}`} onClick={() => addToRoom(item.id)} className="flex-shrink-0 w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center text-4xl shadow-sm border-2 border-gray-200 hover:border-[#55C1DE] hover:bg-[#E0F7FA] active:scale-95 transition-all">
                                     {item.emoji}
                                 </button>
                             ))
@@ -1259,6 +1375,135 @@ const App = () => {
     );
   };
 
+  // --- [New View] Class Learning Screen ---
+  const ClassLearningScreen = () => {
+      const word = classSession.words[classSession.currentIndex];
+      
+      const nextWord = () => {
+          if (classSession.currentIndex < classSession.words.length - 1) {
+              const nextIdx = classSession.currentIndex + 1;
+              setClassSession(prev => ({...prev, currentIndex: nextIdx}));
+              setTimeout(() => playWordSound(classSession.words[nextIdx]), 300);
+          } else {
+              startClassQuiz();
+          }
+      };
+
+      return (
+          <div className="flex flex-col items-center justify-center h-[80vh] p-4">
+              <div className="w-full max-w-sm mb-4">
+                  <div className="flex justify-between text-gray-400 font-bold mb-1">
+                      <span>Class Progress</span>
+                      <span>{classSession.currentIndex + 1} / {classSession.words.length}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div className="bg-[#78B159] h-3 rounded-full transition-all" style={{width: `${((classSession.currentIndex + 1) / classSession.words.length) * 100}%`}}></div>
+                  </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[3rem] shadow-xl text-center border-8 border-[#F0F0F0] mb-8 w-full max-w-sm relative">
+                  <div className="absolute top-4 left-4 text-4xl font-black text-gray-200">{word.t[0]}</div>
+                  <div className="text-9xl mb-6">{word.e}</div>
+                  <div className="flex justify-center mb-2">
+                      <ZhuyinWord text={word.tr} bopomofo={word.b}/>
+                  </div>
+                  <div className="text-4xl font-black text-gray-800 mb-4">{word.t}</div>
+                  <button onClick={() => playWordSound(word)} className="p-4 bg-[#E0F2F1] rounded-full text-[#009688] shadow-sm active:scale-95"><Volume2 size={32}/></button>
+              </div>
+
+              <button onClick={nextWord} className="bg-[#55C1DE] text-white w-full max-w-sm py-4 rounded-full font-black text-xl shadow-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95">
+                  {classSession.currentIndex === classSession.words.length - 1 ? 'Start Quiz!' : 'Next Word'} <ArrowLeft className="rotate-180"/>
+              </button>
+          </div>
+      );
+  };
+
+  // --- [New View] Class Quiz Screen ---
+  const ClassQuizScreen = () => {
+      const q = classSession.quizQueue[classSession.quizIndex];
+      const isLuca = user === 'luca';
+      
+      return (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 max-w-lg mx-auto">
+              <div className="mb-4 text-center w-full">
+                  <div className="flex justify-center gap-2 mb-4">
+                      {classSession.quizQueue.map((item, i) => (
+                          <div key={i} className={`w-3 h-3 rounded-full ${i === classSession.quizIndex ? 'bg-[#55C1DE]' : (item.isCorrect ? 'bg-[#78B159]' : 'bg-gray-200')}`}></div>
+                      ))}
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm relative mb-6 border-4 border-[#F0F0F0]">
+                      <div className="absolute -top-4 -left-4 bg-[#F4E04D] text-[#8B4513] px-3 py-1 rounded-full font-black text-xs border-2 border-white shadow-sm uppercase">{q.type}</div>
+                      
+                      {q.type === 'listen' && (
+                          <button onClick={() => speak(q.q.t, 'en-US')} className="p-6 rounded-full bg-[#E0F2F1] text-[#009688] hover:scale-110 transition-transform">
+                              <Volume2 size={64}/>
+                          </button>
+                      )}
+                      
+                      {q.type === 'spell' && (
+                          <div className="flex flex-col items-center">
+                              <div className="text-6xl mb-4">{q.q.e}</div>
+                              <div className="flex gap-1 justify-center flex-wrap">
+                                  {isLuca ? (
+                                      <div className="flex items-center gap-2 bg-[#FDF6E3] px-4 py-2 rounded-xl">
+                                          <span className={`text-4xl font-black border-b-4 min-w-[30px] text-center text-[#55C1DE] border-[#55C1DE]`}>?</span>
+                                          <span className="text-4xl font-bold text-gray-300">{q.q.t.slice(1)}</span>
+                                      </div>
+                                  ) : (
+                                      q.q.t.split('').map((char, i) => (
+                                          <div key={i} className={`w-10 h-12 border-b-4 flex items-center justify-center text-2xl font-bold rounded-lg mx-0.5 ${q.spelling[i] ? 'bg-white' : 'bg-black/5'}`}>
+                                              {q.spelling[i]}
+                                          </div>
+                                      ))
+                                  )}
+                              </div>
+                          </div>
+                      )}
+
+                      {q.type === 'fill' && (
+                          <>
+                              <div className="mb-4 flex justify-center">
+                                  {isLuca ? (
+                                      <button onClick={() => speak(q.q.s.replace('___', q.q.t), 'en-US')} className="bg-[#E0F2F1] p-4 rounded-full text-[#009688]"><Volume2 size={48} /></button>
+                                  ) : (
+                                      <div className="text-6xl animate-bounce">❓</div>
+                                  )}
+                              </div>
+                              <div className="text-xl font-black text-gray-600 leading-relaxed">
+                                  {q.q.s.split('___')[0]}
+                                  <span className="inline-block border-b-4 mx-1 min-w-[60px] text-center text-[#55C1DE] border-[#55C1DE]">___</span>
+                                  {q.q.s.split('___')[1]}
+                              </div>
+                          </>
+                      )}
+                  </div>
+              </div>
+
+              <div className="w-full">
+                  {q.type !== 'spell' && (
+                      <div className="grid grid-cols-2 gap-4">
+                          {q.options.map((opt, i) => (
+                              <button key={i} onClick={() => handleClassQuizAnswer(opt)} className="bg-white p-6 rounded-3xl shadow-sm border-2 border-transparent hover:border-[#78B159] active:translate-y-1 transition-all flex flex-col items-center justify-center min-h-[100px]">
+                                  {q.type === 'listen' ? <span className="text-5xl">{opt.e}</span> : <span className="text-xl font-black text-gray-600">{opt.t}</span>}
+                              </button>
+                          ))}
+                      </div>
+                  )}
+                  {q.type === 'spell' && (
+                      <div className="flex flex-wrap gap-3 justify-center">
+                          {q.options.map((char, i) => (
+                              <button key={i} onClick={() => handleClassQuizAnswer(char)} className="w-16 h-16 bg-white rounded-2xl shadow-sm border-b-4 border-[#E5E7EB] font-black text-3xl text-gray-600 active:border-b-0 active:translate-y-1">
+                                  {char}
+                              </button>
+                          ))}
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  };
+
+  // --- Main Game Screen (Existing logic) ---
   const GameScreen = ({ type }) => {
     const { q, options, isCorrect, spelling, showAnswer, mistakes } = gameState;
     const isSpell = type === 'spell';
@@ -1405,75 +1650,6 @@ const App = () => {
     );
   };
 
-  const LearnScreen = () => (
-    <div className="p-4 pb-24 max-w-xl mx-auto animate-slide-up">
-       <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-3xl shadow-sm">
-          <h2 className="text-6xl font-black text-[#78B159]">{currentLetter}</h2>
-          <div className="flex gap-2">
-             <button onClick={() => loadSmartWords(currentLetter)} className="p-3 bg-[#F0F0F0] rounded-full hover:bg-[#E0E0E0]"><RefreshCw size={24} className="text-gray-500"/></button>
-             <button onClick={() => setView('home')} className="p-3 bg-[#F0F0F0] rounded-full hover:bg-[#E0E0E0]"><Home size={24} className="text-gray-500"/></button>
-          </div>
-       </div>
-       <div className="grid gap-4">
-          {sessionWords.map((word, i) => (
-             <div key={i} onClick={() => playWordSound(word)} className="bg-white rounded-[2rem] p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:scale-[1.02] transition-transform border-2 border-transparent hover:border-[#55C1DE]">
-                <div className="w-24 h-24 bg-[#FDF6E3] rounded-2xl flex items-center justify-center text-6xl shadow-inner">{word.e}</div>
-                <div className="flex-1">
-                   <div className="flex items-baseline gap-2">
-                      <ZhuyinWord text={word.tr} bopomofo={word.b}/>
-                   </div>
-                   <div className="text-2xl font-black text-gray-800 mb-2">{word.t}</div>
-                   
-                   <button 
-                      onClick={(e) => { e.stopPropagation(); playSentence(word); }}
-                      className="mt-1 w-full flex items-center gap-2 text-sm font-bold text-[#55C1DE] bg-[#E0F7FA] px-4 py-3 rounded-xl"
-                   >
-                      <Volume2 size={16}/> {word.s}
-                   </button>
-                </div>
-             </div>
-          ))}
-       </div>
-    </div>
-  );
-
-  const ShopScreen = () => (
-    <div className="p-4 pb-24">
-       <div className="bg-[#F4E04D] p-6 rounded-[2rem] text-[#8B4513] flex items-center justify-between shadow-lg mb-8 border-4 border-white relative overflow-hidden">
-          <div className="relative z-10">
-             <h2 className="font-black text-xl opacity-80 uppercase tracking-wider">Pocket Bells</h2>
-             <div className="text-5xl font-black flex items-center gap-2 mt-1">
-                💰 {stars[user]}
-             </div>
-          </div>
-          <div className="absolute right-0 top-0 bottom-0 w-24 bg-[#E6C619] opacity-20 transform skew-x-12"></div>
-       </div>
-
-       <h3 className="font-black text-gray-600 mb-4 flex items-center gap-2 text-xl"><Leaf className="text-[#78B159]"/> Nook's Cranny</h3>
-       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-          {SHOP_ITEMS.filter(item => item.type === user || item.type === 'common').map(item => {
-             const owned = inventory[user].includes(item.id);
-             const canAfford = stars[user] >= item.price;
-             return (
-                <div key={item.id} className="bg-white p-4 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center relative overflow-hidden">
-                   <div className="text-6xl mb-2">{item.emoji}</div>
-                   <div className="font-bold text-gray-700">{item.name}</div>
-                   {owned ? (
-                      <div className="mt-2 bg-[#E8F5E9] text-[#2E7D32] w-full py-1 rounded-full font-bold text-xs flex items-center justify-center gap-1">
-                         Owned
-                      </div>
-                   ) : (
-                      <button onClick={() => buyItem(item)} disabled={!canAfford} className={`w-full mt-2 py-2 rounded-xl font-bold text-sm ${canAfford ? 'bg-[#55C1DE] text-white hover:bg-[#4DB6D3]' : 'bg-gray-200 text-gray-400'}`}>
-                         {item.price} Bells
-                      </button>
-                   )}
-                </div>
-             );
-          })}
-       </div>
-    </div>
-  );
-
   if (!user) return <CoverScreen />;
 
   return (
@@ -1492,6 +1668,7 @@ const App = () => {
                  </div>
               </div>
 
+              {/* Progress Bar */}
               {(() => {
                 const { current, total } = getProgressStats();
                 const percent = Math.round((current / total) * 100) || 0;
@@ -1508,6 +1685,15 @@ const App = () => {
                   </div>
                 );
               })()}
+
+              {/* 🎒 [NEW] Random Class Button */}
+              <button onClick={startRandomClass} className="w-full bg-[#9C27B0] text-white py-4 rounded-[2rem] shadow-md flex items-center justify-center gap-3 hover:bg-[#8E24AA] transition-transform active:scale-95 border-4 border-[#BA68C8]">
+                  <GraduationCap size={32} />
+                  <div className="text-left">
+                      <div className="font-black text-xl leading-none">Start Random Class</div>
+                      <div className="text-xs font-bold opacity-80">Learn 26 words & take a quiz!</div>
+                  </div>
+              </button>
 
               <div className="bg-white/60 backdrop-blur rounded-[2rem] p-6">
                  <h3 className="text-[#78B159] font-black mb-4 flex items-center gap-2"><Trees size={20}/> Word Cards</h3>
@@ -1539,6 +1725,19 @@ const App = () => {
 
         {view === 'learn' && <LearnScreen />}
         {view === 'room' && <RoomScreen />}
+        {view === 'class-learning' && <ClassLearningScreen />}
+        {view === 'class-quiz' && <ClassQuizScreen />}
+        {view === 'class-summary' && (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-pop-up">
+                <Trophy size={80} className="text-[#F4E04D] mb-4 drop-shadow-md"/>
+                <h2 className="text-4xl font-black text-gray-700 mb-2">Class Completed!</h2>
+                <p className="text-xl font-bold text-gray-500 mb-8">You earned lots of bells!</p>
+                <div className="flex gap-4">
+                    <button onClick={() => setView('home')} className="bg-[#78B159] text-white px-8 py-3 rounded-full font-black text-xl shadow-lg">Go Home</button>
+                    <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-8 py-3 rounded-full font-black text-xl shadow-lg">Go Shop</button>
+                </div>
+            </div>
+        )}
         {view.startsWith('game-') && <GameScreen type={view.split('-')[1]} />}
         {view === 'shop' && <ShopScreen />}
       </main>
@@ -1568,5 +1767,3 @@ const App = () => {
     </div>
   );
 };
-
-export default App;

@@ -6,7 +6,7 @@ import {
   Coffee, Image, Smile, Gift, Crown, Anchor, Check, X
 } from 'lucide-react';
 
-// --- 1. A-Z 資料庫 (完整版) ---
+// --- 1. A-Z 資料庫 (完整無省略版) ---
 const RAW_VOCAB = {
   A: [
     { t: 'Apple', tr: '蘋果', b: 'ㄆㄧㄥˊ ㄍㄨㄛˇ', e: '🍎', s: 'I eat a red ___.', st: '我吃紅蘋果。', l: 1 },
@@ -485,7 +485,7 @@ const RAW_VOCAB = {
     { t: 'Zone', tr: '區域', b: 'ㄑㄩ ㄩˋ', e: '🚧', s: 'Safe ___.', st: '安全區域。', l: 2 },
     { t: 'Zoom', tr: '放大', b: 'ㄈㄤˋ ㄉㄚˋ', e: '🔍', s: '___ in.', st: '放大。', l: 2 },
   ]
-
+};
 
 // 補齊 helper (防止意外存取到未定義的字母)
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
@@ -575,4 +575,1100 @@ const PROFILES = {
     theme: 'bg-[#F472B6]', 
     bg: 'bg-[#FDF6E3]', 
     cardBg: 'bg-white',
-    accent: 'text-[#DB2777
+    accent: 'text-[#DB2777]',
+    border: 'border-[#DB2777]',
+    avatar: '👧🏻',
+    levelLimit: 5, 
+    dailyWords: 5,
+  }
+};
+
+// --- 4. 語音 Hook ---
+const useSpeech = () => {
+  const [voices, setVoices] = useState([]);
+  const isSpeaking = useRef(false);
+  const queue = useRef([]);
+
+  useEffect(() => {
+    const load = () => setVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+  }, []);
+
+  const processQueue = useCallback(() => {
+    if (isSpeaking.current || queue.current.length === 0) return;
+
+    const { text, lang } = queue.current.shift();
+    isSpeaking.current = true;
+
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+
+    if (lang === 'en-US') {
+        const friendly = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha'));
+        if (friendly) u.voice = friendly;
+        u.rate = 0.9; 
+        u.pitch = 1.1; 
+    } else {
+        const zh = voices.find(v => v.lang === 'zh-TW' || v.name.includes('Mei-Jia'));
+        if (zh) u.voice = zh;
+        u.rate = 0.8;
+        u.pitch = 1.0; 
+    }
+
+    u.onend = () => {
+        isSpeaking.current = false;
+        setTimeout(processQueue, 150);
+    };
+
+    window.speechSynthesis.speak(u);
+  }, [voices]);
+
+  const speak = useCallback((text, lang = 'en-US') => {
+    window.speechSynthesis.cancel();
+    queue.current = [];
+    isSpeaking.current = false;
+    queue.current.push({ text, lang });
+    processQueue();
+  }, [processQueue]);
+
+  const speakBilingual = useCallback((enText, zhText) => {
+      window.speechSynthesis.cancel();
+      queue.current = [];
+      isSpeaking.current = false;
+      
+      queue.current.push({ text: enText, lang: 'en-US' });
+      if (zhText) {
+          const spacedZh = zhText.split('').join(' '); 
+          queue.current.push({ text: spacedZh, lang: 'zh-TW' });
+      }
+      processQueue();
+  }, [processQueue]);
+
+  return { speak, speakBilingual };
+};
+
+// --- 5. 專業注音元件 ---
+const ZhuyinBlock = ({ char, bopomofo }) => {
+  const tones = ['ˊ', 'ˇ', 'ˋ', '˙'];
+  let tone = '';
+  let symbols = bopomofo;
+
+  if (tones.includes(bopomofo.slice(-1))) {
+     tone = bopomofo.slice(-1);
+     symbols = bopomofo.slice(0, -1);
+  } else if (bopomofo.includes('˙')) {
+     tone = '˙';
+     symbols = bopomofo.replace('˙', '');
+  }
+
+  const extraBoldStyle = { WebkitTextStroke: '0.35px black' };
+
+  return (
+    <div className="flex items-center mx-1 relative group">
+       <span className="text-4xl font-black text-gray-800 leading-none">{char}</span>
+       
+       <div className="flex flex-col justify-center items-center ml-1 h-8 w-3 relative">
+          {symbols.split('').map((s, i) => (
+             <span key={i} className="text-[10px] font-black text-black leading-[0.9]" style={extraBoldStyle}>{s}</span>
+          ))}
+          
+          {tone && (
+             <div className={`absolute text-[10px] font-black text-black ${tone === '˙' ? 'top-[-4px] left-[2px]' : 'right-[-6px] top-[40%]'}`} style={extraBoldStyle}>
+                {tone}
+             </div>
+          )}
+       </div>
+    </div>
+  );
+};
+
+const ZhuyinWord = ({ text, bopomofo }) => {
+  const chars = text.split('');
+  const bopos = bopomofo ? bopomofo.split(' ') : [];
+  return (
+    <div className="flex items-center">
+      {chars.map((char, i) => (
+        <ZhuyinBlock key={i} char={char} bopomofo={bopos[i] || ''} />
+      ))}
+    </div>
+  );
+};
+
+// --- 6. 主程式 ---
+const App = () => {
+  const [user, setUser] = useState(null); 
+  const [view, setView] = useState('cover'); 
+  const [stars, setStars] = useState({ luca: 100, yuna: 100 }); 
+  const [inventory, setInventory] = useState({ luca: [], yuna: [] });
+  
+  const [roomItems, setRoomItems] = useState(() => {
+    const saved = localStorage.getItem('happyAbcRoom');
+    return saved ? JSON.parse(saved) : { luca: [], yuna: [] };
+  });
+
+  const [masteredWords, setMasteredWords] = useState(() => {
+    const saved = localStorage.getItem('happyAbcProgress');
+    return saved ? JSON.parse(saved) : { luca: [], yuna: [] };
+  });
+
+  const [learningHistory, setLearningHistory] = useState(() => {
+    const saved = localStorage.getItem('happyAbcHistory');
+    return saved ? JSON.parse(saved) : { luca: {}, yuna: {} };
+  });
+
+  const [classSession, setClassSession] = useState({
+    words: [],
+    currentIndex: 0,
+    quizMode: false,
+    quizQueue: [], 
+    quizIndex: 0,
+    quizScore: 0
+  });
+
+  // Shop Category State
+  const [shopCategory, setShopCategory] = useState('all');
+
+  useEffect(() => {
+    localStorage.setItem('happyAbcProgress', JSON.stringify(masteredWords));
+  }, [masteredWords]);
+
+  useEffect(() => {
+    localStorage.setItem('happyAbcHistory', JSON.stringify(learningHistory));
+  }, [learningHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('happyAbcRoom', JSON.stringify(roomItems));
+  }, [roomItems]);
+  
+  const [currentLetter, setCurrentLetter] = useState(null);
+  const [sessionWords, setSessionWords] = useState([]);
+  const [gameState, setGameState] = useState({
+    q: null, options: [], spelling: [], isCorrect: null, mistakes: 0, showAnswer: false,
+  });
+
+  const { speak, speakBilingual } = useSpeech();
+  const p = user ? PROFILES[user] : {};
+
+  const getProgressStats = () => {
+    if (!user) return { current: 0, total: 0 };
+    const p = PROFILES[user];
+    const allValidWords = ALPHABET.flatMap(l => RAW_VOCAB[l] || []).filter(w => w.l <= p.levelLimit);
+    const userMastered = masteredWords[user] || [];
+    const validMastered = userMastered.filter(t => allValidWords.find(w => w.t === t));
+    return { current: validMastered.length, total: allValidWords.length };
+  };
+
+  const handleLogin = (uid) => {
+    setUser(uid);
+    setView('home');
+    speak(`Hi ${PROFILES[uid].name}!`, 'en-US');
+  };
+
+  const playWordSound = (word) => {
+      speakBilingual(word.t, word.tr);
+      if (Math.random() > 0.6) {
+          setStars(prev => ({ ...prev, [user]: prev[user] + 1 }));
+      }
+  };
+
+  const playSentence = (word) => {
+      const fullEn = word.s.replace('___', word.t);
+      speakBilingual(fullEn, word.st);
+  };
+
+  const loadSmartWords = (letter) => {
+    const profile = PROFILES[user];
+    const allInLetter = RAW_VOCAB[letter] || [];
+    const validWords = allInLetter.filter(w => w.l <= profile.levelLimit);
+    const userHistory = learningHistory[user] || {};
+    const seenWords = userHistory[letter] || [];
+
+    let candidates = validWords.filter(w => !seenWords.includes(w.t));
+    let selected = [];
+
+    if (candidates.length >= profile.dailyWords) {
+        selected = candidates.sort(() => 0.5 - Math.random()).slice(0, profile.dailyWords);
+        const newHistory = { ...userHistory, [letter]: [...seenWords, ...selected.map(w => w.t)] };
+        setLearningHistory({ ...learningHistory, [user]: newHistory });
+    } else {
+        selected = [...candidates];
+        const needed = profile.dailyWords - selected.length;
+        const poolForRefill = validWords.filter(w => !selected.includes(w.t));
+        const refill = poolForRefill.sort(() => 0.5 - Math.random()).slice(0, needed);
+        selected = [...selected, ...refill];
+        const newHistory = { ...userHistory, [letter]: selected.map(w => w.t) };
+        setLearningHistory({ ...learningHistory, [user]: newHistory });
+        if (candidates.length === 0) speak("New Cycle!", 'en-US'); 
+    }
+
+    setSessionWords(selected);
+    setCurrentLetter(letter);
+    setView('learn');
+    speak(letter, 'en-US');
+  };
+
+  const buyItem = (item) => {
+    if (stars[user] >= item.price) {
+      if (inventory[user].includes(item.id)) {
+        speak("You already have this!", 'en-US');
+        return;
+      }
+      setStars(prev => ({ ...prev, [user]: prev[user] - item.price }));
+      setInventory(prev => ({ ...prev, [user]: [...prev[user], item.id] }));
+      speak(`Bought it!`, 'en-US');
+    } else {
+      speak("Need more bells!", 'en-US');
+    }
+  };
+
+  const initGame = (type) => {
+    const profile = PROFILES[user];
+    const userHistory = learningHistory[user] || {};
+    const learnedWordsList = Object.values(userHistory).flat();
+    const allValidWords = ALPHABET.flatMap(l => RAW_VOCAB[l] || []).filter(w => w.l <= profile.levelLimit);
+    
+    if (learnedWordsList.length < 3) {
+        speak("Go learn some words first!", 'en-US');
+        loadSmartWords('A'); 
+        return; 
+    }
+
+    let targetPool = allValidWords.filter(w => learnedWordsList.includes(w.t));
+    if (targetPool.length === 0) targetPool = allValidWords;
+
+    const target = targetPool[Math.floor(Math.random() * targetPool.length)];
+    let newState = { q: target, isCorrect: null, mistakes: 0, showAnswer: false };
+
+    if (type === 'listen') {
+      const count = user === 'luca' ? 3 : 4;
+      const others = allValidWords.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, count - 1);
+      newState.options = [target, ...others].sort(() => 0.5 - Math.random());
+      setTimeout(() => speak(target.t, 'en-US'), 300);
+    } 
+    else if (type === 'spell') {
+      if (user === 'luca') {
+        newState.spelling = [];
+        const correct = target.t[0].toUpperCase();
+        const others = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').filter(c => c !== correct).sort(() => 0.5 - Math.random()).slice(0, 2);
+        newState.options = [correct, ...others].sort(() => 0.5 - Math.random());
+      } else {
+        const correctChars = target.t.toUpperCase().split('');
+        const len = correctChars.length;
+        const numToReveal = Math.ceil(len / 2);
+        const revealedIndices = new Set();
+        while(revealedIndices.size < numToReveal) {
+            revealedIndices.add(Math.floor(Math.random() * len));
+        }
+        newState.spelling = correctChars.map((char, idx) => 
+            revealedIndices.has(idx) ? char : ''
+        );
+        const hiddenChars = correctChars.filter((_, idx) => !revealedIndices.has(idx));
+        const randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').sort(() => 0.5 - Math.random()).slice(0, 3);
+        newState.options = [...hiddenChars, ...randomChars].sort(() => 0.5 - Math.random());
+      }
+      setTimeout(() => speak(target.t, 'en-US'), 300);
+    }
+    else if (type === 'fill') {
+      const others = allValidWords.filter(w => w.t !== target.t).sort(() => 0.5 - Math.random()).slice(0, 3);
+      newState.options = [target, ...others].sort(() => 0.5 - Math.random());
+      if (user === 'luca') {
+          const fullSent = target.s.replace('___', target.t);
+          setTimeout(() => speak(fullSent, 'en-US'), 300);
+      }
+    }
+
+    setGameState(newState);
+    setView(`game-${type}`);
+  };
+
+  const checkAnswer = (answer, type) => {
+    if (gameState.isCorrect || gameState.showAnswer) return;
+    let correct = false;
+    if (type === 'listen' || type === 'fill') correct = answer.t === gameState.q.t;
+    
+    if (correct) handleCorrect(type);
+    else handleMistake();
+  };
+
+  const handleSpelling = (char) => {
+    if (gameState.isCorrect || gameState.showAnswer) return;
+    const { q, spelling } = gameState;
+
+    if (user === 'luca') {
+      if (char === q.t[0].toUpperCase()) handleCorrect('spell');
+      else {
+        speak(char.toLowerCase(), 'en-US');
+        handleMistake();
+      }
+    } else {
+      const firstEmptyIndex = spelling.findIndex(c => c === '');
+      if (firstEmptyIndex === -1) return;
+
+      const newSpelling = [...spelling];
+      newSpelling[firstEmptyIndex] = char;
+      setGameState(prev => ({ ...prev, spelling: newSpelling }));
+
+      const targetStr = q.t.toUpperCase();
+      const inputStr = newSpelling.join('');
+      
+      if (!newSpelling.includes('')) {
+         if (inputStr === targetStr) {
+             handleCorrect('spell');
+         } else {
+             handleMistake();
+             setTimeout(() => {
+                setGameState(prev => {
+                   const corrected = prev.spelling.map((c, i) => c === targetStr[i] ? c : '');
+                   return { ...prev, spelling: corrected };
+                });
+             }, 1000);
+         }
+      } else {
+        speak(char.toLowerCase(), 'en-US');
+      }
+    }
+  };
+
+  const handleCorrect = (type) => {
+      setGameState(prev => ({ ...prev, isCorrect: true }));
+      const wordText = gameState.q.t;
+      if (!masteredWords[user].includes(wordText)) {
+          setMasteredWords(prev => ({ ...prev, [user]: [...prev[user], wordText] }));
+      }
+      
+      if (type === 'listen' || type === 'spell') {
+          speakBilingual(`Correct! ${gameState.q.t}`, gameState.q.tr);
+      } else if (type === 'fill') {
+          const enSent = gameState.q.s.replace('___', gameState.q.t);
+          speakBilingual(enSent, gameState.q.st);
+      }
+      setStars(prev => ({ ...prev, [user]: prev[user] + 10 }));
+  };
+
+  const handleMistake = () => {
+      const newMistakes = gameState.mistakes + 1;
+      if (newMistakes >= 3) {
+          setGameState(prev => ({ ...prev, mistakes: newMistakes, showAnswer: true }));
+          speakBilingual(`The answer is ${gameState.q.t}`, gameState.q.tr);
+      } else {
+          setGameState(prev => ({ ...prev, mistakes: newMistakes }));
+          speak("Try again!", 'en-US');
+      }
+  };
+
+  // --- Random Class & Quiz Logic ---
+  const startRandomClass = () => {
+      const profile = PROFILES[user];
+      const userHistory = learningHistory[user] || {};
+      const learnedWordsList = Object.values(userHistory).flat();
+      let classWords = [];
+
+      ALPHABET.forEach(letter => {
+          const letterWords = RAW_VOCAB[letter] || [];
+          const validWords = letterWords.filter(w => w.l <= profile.levelLimit);
+          
+          if (validWords.length > 0) {
+              const unlearned = validWords.filter(w => !learnedWordsList.includes(w.t));
+              let picked;
+              if (unlearned.length > 0) {
+                  picked = unlearned[Math.floor(Math.random() * unlearned.length)];
+                  const seenForLetter = userHistory[letter] || [];
+                  const newHistory = { ...userHistory, [letter]: [...seenForLetter, picked.t] };
+                  setLearningHistory(prev => ({...prev, [user]: newHistory}));
+              } else {
+                  picked = validWords[Math.floor(Math.random() * validWords.length)];
+              }
+              classWords.push(picked);
+          }
+      });
+
+      setClassSession({
+          words: classWords,
+          currentIndex: 0,
+          quizMode: false,
+          quizQueue: [],
+          quizIndex: 0,
+          quizScore: 0
+      });
+      setView('class-learning');
+      
+      if(classWords.length > 0) {
+          setTimeout(() => playWordSound(classWords[0]), 500);
+      }
+  };
+
+  const startClassQuiz = () => {
+      const quizPool = [...classSession.words].sort(() => 0.5 - Math.random()).slice(0, 5);
+      const queue = quizPool.map(word => {
+          const types = ['listen', 'spell', 'fill'];
+          const type = types[Math.floor(Math.random() * types.length)];
+          
+          let options = [];
+          let spelling = [];
+          const allPool = classSession.words;
+
+          if (type === 'listen') {
+              const count = user === 'luca' ? 3 : 4;
+              const others = allPool.filter(w => w.t !== word.t).sort(() => 0.5 - Math.random()).slice(0, count - 1);
+              options = [word, ...others].sort(() => 0.5 - Math.random());
+          } 
+          else if (type === 'spell') {
+              if (user === 'luca') {
+                  const correct = word.t[0].toUpperCase();
+                  const others = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').filter(c => c !== correct).sort(() => 0.5 - Math.random()).slice(0, 2);
+                  options = [correct, ...others].sort(() => 0.5 - Math.random());
+              } else {
+                  const correctChars = word.t.toUpperCase().split('');
+                  const len = correctChars.length;
+                  const numToReveal = Math.ceil(len / 2);
+                  const revealedIndices = new Set();
+                  while(revealedIndices.size < numToReveal) {
+                      revealedIndices.add(Math.floor(Math.random() * len));
+                  }
+                  spelling = correctChars.map((char, idx) => revealedIndices.has(idx) ? char : '');
+                  const hiddenChars = correctChars.filter((_, idx) => !revealedIndices.has(idx));
+                  const randomChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').sort(() => 0.5 - Math.random()).slice(0, 3);
+                  options = [...hiddenChars, ...randomChars].sort(() => 0.5 - Math.random());
+              }
+          }
+          else if (type === 'fill') {
+              const others = allPool.filter(w => w.t !== word.t).sort(() => 0.5 - Math.random()).slice(0, 3);
+              options = [word, ...others].sort(() => 0.5 - Math.random());
+          }
+
+          return { q: word, type, options, spelling, isCorrect: false, mistakes: 0, showAnswer: false };
+      });
+
+      setClassSession(prev => ({ ...prev, quizMode: true, quizQueue: queue, quizIndex: 0, quizScore: 0 }));
+      speak("Quiz Time!", 'en-US');
+      
+      setView('class-quiz');
+
+      const firstQ = queue[0];
+      setTimeout(() => {
+          if (firstQ.type === 'listen') speak(firstQ.q.t, 'en-US');
+          else if (firstQ.type === 'spell') speak(firstQ.q.t, 'en-US');
+          else if (firstQ.type === 'fill' && user === 'luca') speak(firstQ.q.s.replace('___', firstQ.q.t), 'en-US');
+      }, 500);
+  };
+
+  const handleClassQuizAnswer = (answerOrChar) => {
+      const currentQ = classSession.quizQueue[classSession.quizIndex];
+      if (currentQ.isCorrect || currentQ.showAnswer) return;
+
+      let isCorrect = false;
+      
+      if (currentQ.type === 'listen' || currentQ.type === 'fill') {
+          if (answerOrChar.t === currentQ.q.t) isCorrect = true;
+      } else if (currentQ.type === 'spell') {
+          if (user === 'luca') {
+              if (answerOrChar === currentQ.q.t[0].toUpperCase()) isCorrect = true;
+              else speak(answerOrChar.toLowerCase(), 'en-US');
+          } else {
+              const newSpelling = [...currentQ.spelling];
+              const firstEmpty = newSpelling.findIndex(c => c === '');
+              if (firstEmpty !== -1) {
+                  newSpelling[firstEmpty] = answerOrChar;
+                  const newQueue = [...classSession.quizQueue];
+                  newQueue[classSession.quizIndex].spelling = newSpelling;
+                  setClassSession(prev => ({...prev, quizQueue: newQueue}));
+                  
+                  if (!newSpelling.includes('')) {
+                      if (newSpelling.join('') === currentQ.q.t.toUpperCase()) isCorrect = true;
+                      else {
+                          speak("Try again", 'en-US');
+                          setTimeout(() => {
+                              const resetQueue = [...classSession.quizQueue];
+                              const target = currentQ.q.t.toUpperCase();
+                              resetQueue[classSession.quizIndex].spelling = resetQueue[classSession.quizIndex].spelling.map((c, i) => c === target[i] ? c : '');
+                              setClassSession(prev => ({...prev, quizQueue: resetQueue}));
+                          }, 1000);
+                          return;
+                      }
+                  } else {
+                      speak(answerOrChar.toLowerCase(), 'en-US');
+                      return;
+                  }
+              }
+          }
+      }
+
+      if (isCorrect) {
+          speak("Correct!", 'en-US');
+          const newQueue = [...classSession.quizQueue];
+          newQueue[classSession.quizIndex].isCorrect = true;
+          
+          if (!masteredWords[user].includes(currentQ.q.t)) {
+              setMasteredWords(prev => ({ ...prev, [user]: [...prev[user], currentQ.q.t] }));
+          }
+
+          setClassSession(prev => ({ ...prev, quizQueue: newQueue, quizScore: prev.quizScore + 1 }));
+          
+          setTimeout(() => {
+              if (classSession.quizIndex < 4) {
+                  const nextIdx = classSession.quizIndex + 1;
+                  setClassSession(prev => ({ ...prev, quizIndex: nextIdx }));
+                  const nextQ = classSession.quizQueue[nextIdx];
+                  if (nextQ.type === 'listen' || nextQ.type === 'spell') speak(nextQ.q.t, 'en-US');
+                  else if (nextQ.type === 'fill' && user === 'luca') speak(nextQ.q.s.replace('___', nextQ.q.t), 'en-US');
+              } else {
+                  setView('class-summary');
+                  const bonus = (classSession.quizScore + 1) * 10;
+                  setStars(prev => ({...prev, [user]: prev[user] + bonus}));
+                  speak(`Class finished! You got ${bonus} bells!`, 'en-US');
+              }
+          }, 1000);
+      } else {
+          const newQueue = [...classSession.quizQueue];
+          newQueue[classSession.quizIndex].mistakes += 1;
+          if (newQueue[classSession.quizIndex].mistakes >= 2) {
+              newQueue[classSession.quizIndex].showAnswer = true;
+              speak(`The answer is ${currentQ.q.t}`, 'en-US');
+              setTimeout(() => {
+                  if (classSession.quizIndex < 4) {
+                      const nextIdx = classSession.quizIndex + 1;
+                      setClassSession(prev => ({ ...prev, quizQueue: newQueue, quizIndex: nextIdx }));
+                      const nextQ = classSession.quizQueue[nextIdx];
+                      if (nextQ.type === 'listen' || nextQ.type === 'spell') speak(nextQ.q.t, 'en-US');
+                  } else {
+                      setView('class-summary');
+                      const bonus = classSession.quizScore * 10;
+                      setStars(prev => ({...prev, [user]: prev[user] + bonus}));
+                  }
+              }, 2000);
+          } else {
+              speak("Try again!", 'en-US');
+          }
+          setClassSession(prev => ({ ...prev, quizQueue: newQueue }));
+      }
+  };
+
+  // --- 房間邏輯 ---
+  const updateItemPosition = (uniqueId, x, y) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].map(i => i.id === uniqueId ? { ...i, x, y } : i)
+     }));
+  };
+
+  const addToRoom = (itemId) => {
+     const newItem = {
+        id: Date.now() + Math.random(),
+        itemId: itemId,
+        x: 100 + (Math.random() * 50), 
+        y: 150 + (Math.random() * 50)
+     };
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: [...(prev[user] || []), newItem]
+     }));
+     speak("Plop!", 'en-US');
+  };
+
+  const removeFromRoom = (uniqueId) => {
+     setRoomItems(prev => ({
+        ...prev,
+        [user]: prev[user].filter(i => i.id !== uniqueId)
+     }));
+     speak("Deleted!", 'en-US');
+  };
+
+  // --- UI Components ---
+  const LeafPattern = () => (
+    <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#78B159 2px, transparent 2px)', backgroundSize: '32px 32px' }}></div>
+  );
+
+  const CoverScreen = () => (
+    <div className="h-screen w-full flex relative overflow-hidden font-sans bg-[#FDF6E3]">
+      <div className="absolute inset-0 flex">
+        <div className="w-1/2 relative overflow-hidden bg-[#a5f3fc]">
+           <div onClick={() => handleLogin('luca')} className="h-full flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform">
+              <div className="w-48 h-48 bg-white rounded-[3rem] shadow-lg flex items-center justify-center text-8xl border-8 border-white">
+                 {PROFILES.luca.avatar}
+              </div>
+              <div className="mt-6 bg-[#55C1DE] text-white px-8 py-3 rounded-full font-black text-2xl shadow-lg border-4 border-white">Luca 小律</div>
+           </div>
+        </div>
+        <div className="w-1/2 relative overflow-hidden bg-[#fbcfe8]">
+           <div onClick={() => handleLogin('yuna')} className="h-full flex flex-col items-center justify-center cursor-pointer transform hover:scale-105 transition-transform">
+              <div className="w-48 h-48 bg-white rounded-[3rem] shadow-lg flex items-center justify-center text-8xl border-8 border-white">
+                 {PROFILES.yuna.avatar}
+              </div>
+              <div className="mt-6 bg-[#F9A8D4] text-white px-8 py-3 rounded-full font-black text-2xl shadow-lg border-4 border-white">Yuna 小悠</div>
+           </div>
+        </div>
+      </div>
+      <div className="absolute top-12 w-full text-center pointer-events-none z-10">
+        <div className="inline-block bg-white px-8 py-4 rounded-full shadow-xl border-4 border-[#78B159] transform -rotate-2">
+           <h1 className="text-4xl font-black text-[#78B159] tracking-widest flex items-center gap-2">
+             <Leaf fill="#78B159" />Spelling Bee
+           </h1>
+        </div>
+      </div>
+    </div>
+  );
+
+  const Header = () => (
+    <header className="bg-[#78B159] text-white px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-md">
+       <div className="flex items-center gap-3">
+         <div onClick={() => setUser(null)} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl cursor-pointer hover:bg-white/30">
+            <ArrowLeft />
+         </div>
+         <div className="flex flex-col">
+            <span className="text-xs font-bold opacity-80">Nook's Phone</span>
+            <span className="font-black text-lg leading-none">{p.name}'s Island</span>
+         </div>
+       </div>
+       <div onClick={() => setView('shop')} className="flex items-center gap-2 bg-[#F4E04D] text-[#8B4513] px-4 py-1 rounded-full font-black shadow-sm cursor-pointer border-2 border-[#E6C619]">
+          <div className="bg-[#E6C619] rounded-full p-0.5"><Star size={14} fill="#8B4513" stroke="none"/></div>
+          <span>{stars[user]}</span>
+       </div>
+    </header>
+  );
+
+  // --- Room Component ---
+  const RoomScreen = () => {
+    const items = roomItems[user] || [];
+    const ownedItemIds = inventory[user] || [];
+    const myInventory = ownedItemIds.map(id => SHOP_ITEMS.find(i => i.id === id)).filter(Boolean);
+
+    const [draggingId, setDraggingId] = useState(null);
+    const [sceneIndex, setSceneIndex] = useState(0);
+    const containerRef = useRef(null);
+    const dragOffset = useRef({ x: 0, y: 0 });
+
+    const SCENES = [
+        { name: "Cozy Room", bg: "bg-[#FFF3E0]", floor: "bg-[#D7CCC8]", accent: "border-[#8D6E63]", decor: "🪟" },
+        { name: "Garden", bg: "bg-[#E1F5FE]", floor: "bg-[#C8E6C9]", accent: "border-[#66BB6A]", decor: "🌳" },
+        { name: "Space", bg: "bg-[#1A237E]", floor: "bg-[#283593]", accent: "border-[#5C6BC0]", decor: "🪐" },
+        { name: "Candy", bg: "bg-[#FCE4EC]", floor: "bg-[#F8BBD0]", accent: "border-[#EC407A]", decor: "🍭" }
+    ];
+    const currentScene = SCENES[sceneIndex];
+
+    const toggleScene = () => {
+        setSceneIndex((prev) => (prev + 1) % SCENES.length);
+        speak(SCENES[(sceneIndex + 1) % SCENES.length].name, 'en-US');
+    };
+
+    const handleDragStart = (e, id, currentX, currentY) => {
+        e.preventDefault(); e.stopPropagation();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        dragOffset.current = { x: clientX - currentX, y: clientY - currentY };
+        setDraggingId(id);
+    };
+
+    const handleDragMove = (e) => {
+        if (!draggingId || !containerRef.current) return;
+        e.preventDefault();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const rect = containerRef.current.getBoundingClientRect();
+        let newX = (clientX - rect.left) - (dragOffset.current.x % 60);
+        let newY = (clientY - rect.top) - (dragOffset.current.y % 60);
+        if (newX < 0) newX = 0; if (newY < 0) newY = 0;
+        if (newX > rect.width - 60) newX = rect.width - 60;
+        if (newY > rect.height - 60) newY = rect.height - 60;
+        const isTrash = clientY > (window.innerHeight - 140);
+        const el = document.getElementById(`item-${draggingId}`);
+        if(el) {
+            el.style.left = `${newX}px`; el.style.top = `${newY}px`;
+            el.style.opacity = isTrash ? '0.5' : '1';
+            el.style.transform = isTrash ? 'scale(0.8)' : 'scale(1.2)';
+        }
+    };
+
+    const handleDragEnd = (e) => {
+        if (!draggingId) return;
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+        if (clientY > (window.innerHeight - 140)) {
+            removeFromRoom(draggingId);
+        } else {
+            const el = document.getElementById(`item-${draggingId}`);
+            if (el) {
+                const x = parseFloat(el.style.left);
+                const y = parseFloat(el.style.top);
+                updateItemPosition(draggingId, x, y);
+                el.style.transform = 'scale(1)';
+            }
+        }
+        setDraggingId(null);
+    };
+
+    return (
+        <div className="h-[90vh] flex flex-col pb-4 overflow-hidden relative select-none">
+             <div className="flex justify-between items-center px-4 py-2 bg-white/80 backdrop-blur z-20 shadow-sm">
+                 <h2 className="text-xl font-black text-gray-700">{p.name}'s Room</h2>
+                 <div className="flex gap-2">
+                    <button onClick={toggleScene} className="bg-white border-2 border-gray-300 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95">🎨 Theme</button>
+                    <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-3 py-1 rounded-full text-xs font-bold shadow-md active:scale-95">🛍️ Shop</button>
+                 </div>
+             </div>
+             <div ref={containerRef} className={`flex-1 relative overflow-hidden transition-colors duration-500`}
+                onTouchMove={handleDragMove} onTouchEnd={handleDragEnd} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
+             >
+                <div className={`absolute inset-0 ${currentScene.bg} -z-20`}></div>
+                <div className={`absolute bottom-0 left-0 right-0 h-[35%] ${currentScene.floor} -z-10 border-t-4 border-black/10`}></div>
+                <div className="absolute top-10 left-10 text-6xl opacity-80 select-none pointer-events-none filter drop-shadow-sm">{currentScene.decor}</div>
+                <div className="absolute bottom-[5%] left-1/2 -translate-x-1/2 w-48 h-24 bg-black/5 rounded-[100%] pointer-events-none transform scale-x-150 blur-sm"></div>
+                {items.length === 0 && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 pointer-events-none">
+                        <span className="text-xl font-black opacity-50">Empty Room</span>
+                        <span className="text-sm">Tap items below to add!</span>
+                    </div>
+                )}
+                {items.map(item => {
+                    const product = SHOP_ITEMS.find(p => p.id === item.itemId);
+                    if (!product) return null;
+                    return (
+                        <div id={`item-${item.id}`} key={item.id} className="absolute text-[4rem] transition-transform cursor-move"
+                            style={{ left: item.x, top: item.y, touchAction: 'none', zIndex: draggingId === item.id ? 100 : 10 }}
+                            onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)} onTouchStart={(e) => handleDragStart(e, item.id, item.x, item.y)}
+                        >
+                            <div className="drop-shadow-xl filter hover:brightness-110">{product.emoji}</div>
+                        </div>
+                    );
+                })}
+             </div>
+             <div className={`h-32 transition-colors duration-300 ${draggingId ? 'bg-red-100 border-t-4 border-red-400' : 'bg-white border-t-4 border-[#C3B091]'}`}>
+                {draggingId ? (
+                    <div className="h-full flex flex-col items-center justify-center text-red-500 animate-pulse">
+                        <Trash2 size={48} /><span className="font-black text-lg">Drop here to remove</span>
+                    </div>
+                ) : (
+                    <div className="h-full overflow-x-auto flex items-center px-4 gap-3 no-scrollbar">
+                        {myInventory.length === 0 ? (
+                            <div className="w-full text-center text-gray-400 text-sm font-bold">No items yet. Go Shopping!</div>
+                        ) : (
+                            myInventory.map((item, idx) => (
+                                <button key={`${item.id}-${idx}`} onClick={() => addToRoom(item.id)} className="flex-shrink-0 w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center text-4xl shadow-sm border-2 border-gray-200 hover:border-[#55C1DE] hover:bg-[#E0F7FA] active:scale-95 transition-all">
+                                    {item.emoji}
+                                </button>
+                            ))
+                        )}
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+  };
+
+  // --- Class Learning Screen ---
+  const ClassLearningScreen = () => {
+      const word = classSession.words[classSession.currentIndex];
+      
+      const nextWord = () => {
+          if (classSession.currentIndex < classSession.words.length - 1) {
+              const nextIdx = classSession.currentIndex + 1;
+              setClassSession(prev => ({...prev, currentIndex: nextIdx}));
+              setTimeout(() => playWordSound(classSession.words[nextIdx]), 300);
+          } else {
+              startClassQuiz();
+          }
+      };
+
+      return (
+          <div className="flex flex-col items-center justify-center h-[80vh] p-4 animate-slide-up">
+              <div className="w-full max-w-sm mb-4">
+                  <div className="flex justify-between text-gray-400 font-bold mb-1">
+                      <span>Class Progress</span>
+                      <span>{classSession.currentIndex + 1} / {classSession.words.length}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div className="bg-[#78B159] h-3 rounded-full transition-all" style={{width: `${((classSession.currentIndex + 1) / classSession.words.length) * 100}%`}}></div>
+                  </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[3rem] shadow-xl text-center border-8 border-[#F0F0F0] mb-8 w-full max-w-sm relative">
+                  <div className="absolute top-4 left-4 text-4xl font-black text-gray-200">{word.t[0]}</div>
+                  <div className="text-9xl mb-6">{word.e}</div>
+                  <div className="flex justify-center mb-2">
+                      <ZhuyinWord text={word.tr} bopomofo={word.b}/>
+                  </div>
+                  <div className="text-4xl font-black text-gray-800 mb-4">{word.t}</div>
+                  <button onClick={() => playWordSound(word)} className="p-4 bg-[#E0F2F1] rounded-full text-[#009688] shadow-sm active:scale-95"><Volume2 size={32}/></button>
+              </div>
+
+              <button onClick={nextWord} className="bg-[#55C1DE] text-white w-full max-w-sm py-4 rounded-full font-black text-xl shadow-lg flex items-center justify-center gap-2 hover:brightness-110 active:scale-95">
+                  {classSession.currentIndex === classSession.words.length - 1 ? 'Start Quiz!' : 'Next Word'} <ArrowLeft className="rotate-180"/>
+              </button>
+          </div>
+      );
+  };
+
+  // --- Class Quiz Screen ---
+  const ClassQuizScreen = () => {
+      const q = classSession.quizQueue[classSession.quizIndex];
+      const isLuca = user === 'luca';
+      
+      return (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 max-w-lg mx-auto">
+              <div className="mb-4 text-center w-full">
+                  <div className="flex justify-center gap-2 mb-4">
+                      {classSession.quizQueue.map((item, i) => (
+                          <div key={i} className={`w-3 h-3 rounded-full ${i === classSession.quizIndex ? 'bg-[#55C1DE]' : (item.isCorrect ? 'bg-[#78B159]' : 'bg-gray-200')}`}></div>
+                      ))}
+                  </div>
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm relative mb-6 border-4 border-[#F0F0F0]">
+                      <div className="absolute -top-4 -left-4 bg-[#F4E04D] text-[#8B4513] px-3 py-1 rounded-full font-black text-xs border-2 border-white shadow-sm uppercase">{q.type}</div>
+                      
+                      {q.type === 'listen' && (
+                          <button onClick={() => speak(q.q.t, 'en-US')} className="p-6 rounded-full bg-[#E0F2F1] text-[#009688] hover:scale-110 transition-transform">
+                              <Volume2 size={64}/>
+                          </button>
+                      )}
+                      
+                      {q.type === 'spell' && (
+                          <div className="flex flex-col items-center">
+                              <div className="text-6xl mb-4">{q.q.e}</div>
+                              <div className="flex gap-1 justify-center flex-wrap">
+                                  {isLuca ? (
+                                      <div className="flex items-center gap-2 bg-[#FDF6E3] px-4 py-2 rounded-xl">
+                                          <span className={`text-4xl font-black border-b-4 min-w-[30px] text-center text-[#55C1DE] border-[#55C1DE]`}>?</span>
+                                          <span className="text-4xl font-bold text-gray-300">{q.q.t.slice(1)}</span>
+                                      </div>
+                                  ) : (
+                                      q.q.t.split('').map((char, i) => (
+                                          <div key={i} className={`w-10 h-12 border-b-4 flex items-center justify-center text-2xl font-bold rounded-lg mx-0.5 ${q.spelling[i] ? 'bg-white' : 'bg-black/5'}`}>
+                                              {q.spelling[i]}
+                                          </div>
+                                      ))
+                                  )}
+                              </div>
+                          </div>
+                      )}
+
+                      {q.type === 'fill' && (
+                          <>
+                              <div className="mb-4 flex justify-center">
+                                  {isLuca ? (
+                                      <button onClick={() => speak(q.q.s.replace('___', q.q.t), 'en-US')} className="bg-[#E0F2F1] p-4 rounded-full text-[#009688]"><Volume2 size={48} /></button>
+                                  ) : (
+                                      <div className="text-6xl animate-bounce">❓</div>
+                                  )}
+                              </div>
+                              <div className="text-xl font-black text-gray-600 leading-relaxed">
+                                  {q.q.s.split('___')[0]}
+                                  <span className="inline-block border-b-4 mx-1 min-w-[60px] text-center text-[#55C1DE] border-[#55C1DE]">___</span>
+                                  {q.q.s.split('___')[1]}
+                              </div>
+                          </>
+                      )}
+                  </div>
+              </div>
+
+              <div className="w-full">
+                  {q.type !== 'spell' && (
+                      <div className="grid grid-cols-2 gap-4">
+                          {q.options.map((opt, i) => (
+                              <button key={i} onClick={() => handleClassQuizAnswer(opt)} className="bg-white p-6 rounded-3xl shadow-sm border-2 border-transparent hover:border-[#78B159] active:translate-y-1 transition-all flex flex-col items-center justify-center min-h-[100px]">
+                                  {q.type === 'listen' ? <span className="text-5xl">{opt.e}</span> : <span className="text-xl font-black text-gray-600">{opt.t}</span>}
+                              </button>
+                          ))}
+                      </div>
+                  )}
+                  {q.type === 'spell' && (
+                      <div className="flex flex-wrap gap-3 justify-center">
+                          {q.options.map((char, i) => (
+                              <button key={i} onClick={() => handleClassQuizAnswer(char)} className="w-16 h-16 bg-white rounded-2xl shadow-sm border-b-4 border-[#E5E7EB] font-black text-3xl text-gray-600 active:border-b-0 active:translate-y-1">
+                                  {char}
+                              </button>
+                          ))}
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  };
+
+  const ShopScreen = () => {
+    // 安全版本：使用 Emojis 作為分類圖示，避免 Lucide 版本衝突
+    const categories = [
+        { id: 'all', name: 'All', emoji: '🛍️' },
+        { id: 'furniture', name: 'Furniture', emoji: '🪑' },
+        { id: 'nature', name: 'Nature', emoji: '🌿' },
+        { id: 'animals', name: 'Animals', emoji: '🐶' },
+        { id: 'food', name: 'Food', emoji: '🍔' },
+        { id: 'toys', name: 'Toys', emoji: '🚂' },
+    ];
+
+    const filteredItems = shopCategory === 'all' 
+        ? SHOP_ITEMS 
+        : SHOP_ITEMS.filter(item => item.type === shopCategory);
+
+    return (
+    <div className="p-4 pb-24">
+       <div className="bg-[#F4E04D] p-6 rounded-[2rem] text-[#8B4513] flex items-center justify-between shadow-lg mb-6 border-4 border-white relative overflow-hidden">
+          <div className="relative z-10">
+             <h2 className="font-black text-xl opacity-80 uppercase tracking-wider">Pocket Bells</h2>
+             <div className="text-5xl font-black flex items-center gap-2 mt-1">
+                💰 {stars[user]}
+             </div>
+          </div>
+          <div className="absolute right-0 top-0 bottom-0 w-24 bg-[#E6C619] opacity-20 transform skew-x-12"></div>
+       </div>
+
+       {/* Category Tabs */}
+       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-2">
+           {categories.map(cat => (
+               <button 
+                key={cat.id} 
+                onClick={() => setShopCategory(cat.id)}
+                className={`flex items-center gap-1 px-4 py-2 rounded-full font-black text-sm whitespace-nowrap transition-colors
+                    ${shopCategory === cat.id ? 'bg-[#55C1DE] text-white shadow-md' : 'bg-white text-gray-400 border border-gray-200'}
+                `}
+               >
+                   <span>{cat.emoji}</span> {cat.name}
+               </button>
+           ))}
+       </div>
+
+       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+          {filteredItems.length === 0 ? (
+              <div className="col-span-3 text-center text-gray-400 py-8">Loading...</div>
+          ) : (
+              filteredItems.map(item => {
+                 const owned = inventory[user].includes(item.id);
+                 const canAfford = stars[user] >= item.price;
+                 return (
+                    <div key={item.id} className="bg-white p-4 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center relative overflow-hidden">
+                       <div className="text-6xl mb-2">{item.emoji}</div>
+                       <div className="font-bold text-gray-700 text-sm truncate w-full text-center">{item.name}</div>
+                       {owned ? (
+                          <div className="mt-2 bg-[#E8F5E9] text-[#2E7D32] w-full py-1 rounded-full font-bold text-xs flex items-center justify-center gap-1">
+                             Owned
+                          </div>
+                       ) : (
+                          <button onClick={() => buyItem(item)} disabled={!canAfford} className={`w-full mt-2 py-2 rounded-xl font-bold text-xs ${canAfford ? 'bg-[#55C1DE] text-white hover:bg-[#4DB6D3]' : 'bg-gray-200 text-gray-400'}`}>
+                             {item.price} Bells
+                          </button>
+                       )}
+                    </div>
+                 );
+              })
+          )}
+       </div>
+    </div>
+    );
+  };
+
+  if (!user) return <CoverScreen />;
+
+  return (
+    <div className="min-h-screen font-sans bg-[#FDF6E3] pb-safe relative">
+      <LeafPattern />
+      <Header />
+      <main className="pt-6 px-4 max-w-2xl mx-auto relative z-10 pb-32">
+        {view === 'home' && (
+           <div className="grid gap-6 animate-fade-in">
+              <div className="bg-white rounded-[2.5rem] p-6 shadow-sm flex items-center gap-6 border-4 border-white relative overflow-hidden">
+                 <div className={`w-24 h-24 rounded-full flex items-center justify-center text-6xl ${p.theme} border-4 border-white shadow-md`}>{p.avatar}</div>
+                 <div>
+                    <div className="text-[#78B159] font-black text-sm uppercase tracking-widest">PASSPORT</div>
+                    <h2 className="text-3xl font-black text-gray-800">{p.name}</h2>
+                    <div className="text-gray-400 font-bold text-sm mt-1">Island Resident</div>
+                 </div>
+              </div>
+
+              {/* Progress Bar */}
+              {(() => {
+                const { current, total } = getProgressStats();
+                const percent = Math.round((current / total) * 100) || 0;
+                return (
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-white mb-2">
+                    <div className="flex justify-between text-sm font-bold text-gray-500 mb-1">
+                      <span>Collection Progress</span>
+                      <span>{current} / {total} Words</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                       <div className={`h-full ${p.theme} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
+                    </div>
+                    <div className="text-right text-xs font-black text-[#78B159] mt-1">{percent}% Complete!</div>
+                  </div>
+                );
+              })()}
+
+              {/* 🎒 Random Class Button */}
+              <button onClick={startRandomClass} className="w-full bg-[#9C27B0] text-white py-4 rounded-[2rem] shadow-md flex items-center justify-center gap-3 hover:bg-[#8E24AA] transition-transform active:scale-95 border-4 border-[#BA68C8]">
+                  <GraduationCap size={32} />
+                  <div className="text-left">
+                      <div className="font-black text-xl leading-none">Start Random Class</div>
+                      <div className="text-xs font-bold opacity-80">Learn 26 words & take a quiz!</div>
+                  </div>
+              </button>
+
+              <div className="bg-white/60 backdrop-blur rounded-[2rem] p-6">
+                 <h3 className="text-[#78B159] font-black mb-4 flex items-center gap-2"><Trees size={20}/> Word Cards</h3>
+                 <div className="grid grid-cols-6 gap-2">
+                    {ALPHABET.map(l => (
+                       <button key={l} onClick={() => loadSmartWords(l)} className="aspect-square rounded-xl bg-white font-black text-gray-600 shadow-sm hover:bg-[#78B159] hover:text-white transition-colors">
+                          {l}
+                       </button>
+                    ))}
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                 <button onClick={() => initGame('listen')} className="bg-white aspect-square rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#55C1DE]">
+                    <div className="w-16 h-16 bg-[#B3E5FC] rounded-3xl flex items-center justify-center text-[#0277BD] text-3xl"><Volume2 /></div>
+                    <span className="font-black text-gray-600">Listen</span>
+                 </button>
+                 <button onClick={() => initGame('spell')} className="bg-white aspect-square rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#CE93D8]">
+                    <div className="w-16 h-16 bg-[#E1BEE7] rounded-3xl flex items-center justify-center text-[#7B1FA2] text-3xl font-black">Abc</div>
+                    <span className="font-black text-gray-600">Spell</span>
+                 </button>
+                 <button onClick={() => initGame('fill')} className="col-span-2 bg-white h-24 rounded-[2.5rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] flex items-center justify-center gap-4 hover:scale-105 transition-transform border-4 border-transparent hover:border-[#FFCC80]">
+                    <div className="w-12 h-12 bg-[#FFE0B2] rounded-3xl flex items-center justify-center text-[#EF6C00] text-2xl font-black">___</div>
+                    <span className="font-black text-gray-600 text-xl">Fill-in</span>
+                 </button>
+              </div>
+           </div>
+        )}
+
+        {view === 'learn' && <LearnScreen />}
+        {view === 'room' && <RoomScreen />}
+        {view === 'class-learning' && <ClassLearningScreen />}
+        {view === 'class-quiz' && <ClassQuizScreen />}
+        {view === 'class-summary' && (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-pop-up">
+                <Trophy size={80} className="text-[#F4E04D] mb-4 drop-shadow-md"/>
+                <h2 className="text-4xl font-black text-gray-700 mb-2">Class Completed!</h2>
+                <p className="text-xl font-bold text-gray-500 mb-8">You earned lots of bells!</p>
+                <div className="flex gap-4">
+                    <button onClick={() => setView('home')} className="bg-[#78B159] text-white px-8 py-3 rounded-full font-black text-xl shadow-lg">Go Home</button>
+                    <button onClick={() => setView('shop')} className="bg-[#55C1DE] text-white px-8 py-3 rounded-full font-black text-xl shadow-lg">Go Shop</button>
+                </div>
+            </div>
+        )}
+        {view.startsWith('game-') && <GameScreen type={view.split('-')[1]} />}
+        {view === 'shop' && <ShopScreen />}
+      </main>
+
+      {view !== 'cover' && (
+         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#333] px-6 py-3 rounded-[3rem] shadow-2xl flex gap-6 z-50 border-4 border-[#555]">
+            <button onClick={() => setView('home')} className={`p-2 rounded-full ${view === 'home' ? 'text-[#78B159]' : 'text-gray-400 hover:text-white'}`}><Home size={28}/></button>
+            <button onClick={() => setView('room')} className={`p-2 rounded-full ${view === 'room' ? 'text-[#55C1DE]' : 'text-gray-400 hover:text-white'}`}><Move size={28}/></button>
+            <button onClick={() => setView('shop')} className={`p-2 rounded-full ${view === 'shop' ? 'text-[#F4E04D]' : 'text-gray-400 hover:text-white'}`}><ShoppingBag size={28}/></button>
+            <button onClick={() => setUser(null)} className="p-2 rounded-full text-gray-400 hover:text-white"><Settings size={28}/></button>
+         </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes bounce-slow { 0%, 100% { transform: translateY(-5%); } 50% { transform: translateY(5%); } }
+        .animate-bounce-slow { animation: bounce-slow 2s infinite; }
+        .animate-pop-up { animation: pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        .animate-fade-in { animation: fade 0.5s ease-out; }
+        .animate-slide-up { animation: slide 0.5s ease-out; }
+        @keyframes pop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slide { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+    </div>
+  );
+};
+
+export default App;

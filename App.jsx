@@ -496,64 +496,57 @@ ALPHABET.forEach(l => {
   }
 });
 
-// --- 2. 商店商品 (50+ 項) ---
-const SHOP_ITEMS = [
-  // Luca specific (Vehicles & Cool stuff)
-  { id: 'v1', name: 'Police Car', price: 50, emoji: '🚓', type: 'luca' },
-  { id: 'v2', name: 'Fire Truck', price: 50, emoji: '🚒', type: 'luca' },
-  { id: 'v3', name: 'Excavator', price: 60, emoji: '🚜', type: 'luca' },
-  { id: 'v4', name: 'UFO', price: 80, emoji: '🛸', type: 'luca' },
-  { id: 'v5', name: 'Submarine', price: 70, emoji: '🛥️', type: 'luca' },
-  { id: 'v6', name: 'Monster Truck', price: 80, emoji: '🚙', type: 'luca' },
-  { id: 'v7', name: 'Fighter Jet', price: 90, emoji: '✈️', type: 'luca' },
-  { id: 'v8', name: 'Robot', price: 60, emoji: '🤖', type: 'luca' },
-  { id: 'v9', name: 'Rocket', price: 100, emoji: '🚀', type: 'luca' },
-  { id: 'v10', name: 'Race Car', price: 70, emoji: '🏎️', type: 'luca' },
-  { id: 'v11', name: 'Motorbike', price: 50, emoji: '🏍️', type: 'luca' },
-  { id: 'v12', name: 'Train', price: 60, emoji: '🚂', type: 'luca' },
-  { id: 'v13', name: 'Helicopter', price: 70, emoji: '🚁', type: 'luca' },
-  { id: 'v14', name: 'Speed Boat', price: 60, emoji: '🚤', type: 'luca' },
-  { id: 'v15', name: 'Satellite', price: 90, emoji: '🛰️', type: 'luca' },
+// --- 2. 500+ 商店商品產生器 ---
+// 為了不讓程式碼過長，我們使用類別陣列來產生商品
+const generateShopItems = () => {
+    const categories = {
+        furniture: {
+            icon: '🛏️',
+            basePrice: 100,
+            items: "🛏️,🛋️,🪑,🚽,🛁,🚿,🛁,🧴,🧷,🧹,🧺,🧻,🧼,🪣,🪥,🪒,🖥️,🖨️,⌨️,🖱️,🖲️,💽,💾,💿,📀,📼,📷,📸,📹,🎥,📽️,🎞️,📞,☎️,📟,📠,📺,📻,🎙️,🎚️,🎛️,⏱️,⏲️,⏰,🕰️,⏳,⌛,📡,🔋,🔌,💡,🔦,🕯️,🗑️,🛢️,💸,💵,💴,💶,💷,💰,💳,💎,⚖️,🪜,🧰,🪛,🔧,🔨,⚒️,🛠️,⛏️,🪚,🔩,⚙️,🪤,🧱,⛓️,🧲,🔫,💣,🧨,🪓,🔪,🗡️,⚔️,🛡️,🚬,⚰️,🪦,⚱️,🏺,🔮,📿,🧿,💈,⚗️,🔭,🔬,🕳️,🩹,🩺,💊,💉,🩸,🧬,🦠,🧫,🧪,🌡️,🧹,🪠,🧺,🧻,🚽,🚰,🚿,🛁,🛀,🧼,🪥,🪒,🧽,🪣,🧴,🛎️,🔑,🗝️,🚪,🪑,🛋️,🛏️,🛌,🧸,🪆,🖼️,🪞,🪟,🛍️,🛒,🎁,🎈,🎏,🎀,🎊,🎉,🎎,🏮,🎐,🧧,✉️,📩,📨,📧,💌,📥,📤,📦,🏷️,📪,📫,📬,📭,📮,📯,📜,📃,📄,📑,🧾,📊,📈,📉,🗒️,🗓️,📆,📅,🗑️,📇,🗃️,🗳️,🗄️,📋,📁,📂,🗂️,🗞️,📰,📓,📔,📒,📕,📗,📘,📙,📚,📖,🔖,🧷,🔗,📎,🖇️,📐,📏,🧮,📌,📍,✂️,🖊️,🖋️,✒️,🖌️,🖍️,📝,✏️,🔍,🔎,🔏,🔐,🔒,🔓"
+        },
+        nature: {
+            icon: '🌳',
+            basePrice: 40,
+            items: "🌵,🎄,🌲,🌳,🌴,🌱,🌿,☘️,🍀,🎍,🎋,🍃,🍂,🍁,🍄,🐚,🪨,🪵,🌾,💐,🌷,🌹,🥀,🌺,🌸,🌼,🌻,🌞,🌝,🌛,🌜,🌚,🌕,🌖,🌗,🌘,🌑,🌒,🌓,🌔,🌙,🌎,🌍,🌏,🪐,💫,⭐,🌟,✨,⚡,☄️,💥,🔥,🌪️,🌈,☀️,🌤️,⛅,🌥️,☁️,🌦️,🌧️,🌨️,🌩️,_🌫️,🌬️,🌀,❄️,☃️,⛄,💧,💦"
+        },
+        animals: {
+            icon: '🐶',
+            basePrice: 60,
+            items: "🐶,🐱,🐭,🐹,🐰,🦊,🐻,🐼,🐨,🐯,🦁,🐮,🐷,🐽,🐸,🐵,🙈,🙉,🙊,🐒,🐔,🐧,🐦,🐤,🐣,🐥,🦆,🦅,🦉,🦇,🐺,🐗,🐴,🦄,🐝,🪱,🐛,🦋,🐌,🐞,🐜,🪰,🪲,🪳,🦟,🦗,🕷️,🕸️,🦂,🐢,🐍,🦎,🦖,🦕,🐙,🦑,🦐,🦞,🦀,🐡,🐠,🐟,🐬,🐳,🐋,🦈,🦭,🐊,🐅,🐆,🦓,🦍,🦧,🦣,🐘,🦛,🦏,🐪,🐫,🦒,🦘,🦬,🐃,🐂,🐄,🐎,🐖,RAM,🐑,🦙,🐐,🦌,🐕,🐩,🦮,🐕‍🦺,🐈,🐈‍⬛,🪶,🐓,🦃,🦤,🦚,🦜,🦢,🦩,🕊️,🐇,🦝,🦨,🦡,🦫,🦦,🦥,🐁,🐀,🐿️,🦔,🐾,🐉,🐲"
+        },
+        food: {
+            icon: '🍔',
+            basePrice: 30,
+            items: "🍇,🍈,🍉,🍊,🍋,🍌,🍍,🥭,🍎,🍏,🍐,🍑,🍒,🍓,🫐,🥝,🍅,🫒,🥥,🥑,🍆,🥔,🥕,🌽,🌶️,🫑,🥒,🥬,🥦,🧄,🧅,🍄,🥜,🌰,🍞,🥐,🥖,🫓,🥨,🥯,🥞,🧇,🧀,🍖,🍗,🥩,🥓,🍔,🍟,🍕,🌭,🥪,🌮,🌯,🫔,🥙,🧆,🥚,🍳,🥘,🍲,🫕,🥣,🥗,🍿,🧈,🧂,🥫,🍱,🍘,🍙,🍚,🍛,🍜,🍝,🍠,🍢,🍣,🍤,🍥,🥮,🍡,🥟,🥠,🥡,🦀,🦞,🦐,🦑,🦪,🍦,🍧,🍨,🍩,🍪,🎂,🍰,🧁,🥧,🍫,🍬,🍭,🍮,🍯,🍼,🥛,☕,🫖,🍵,🍶,🍾,🍷,🍸,🍹,🍺,🍻,🥂,🥃,🥤,🧋,🧃,🧉,🧊,🥢,🍽️,🍴,🥄,🔪,🏺"
+        },
+        toys: {
+            icon: '🚂',
+            basePrice: 50,
+            items: "🛹,🛼,🛶,🎗️,🎟️,🎫,🎖️,🏆,🏅,🥇,🥈,🥉,⚽,⚾,🥎,🏀,🏐,🏈,🏉,🎾,🥏,🎳,🏏,🏑,🏒,🥍,🏓,🏸,🥊,🥋,🥅,⛳,⛸️,🎣,🤿,🎽,🎿,🛷,🥌,🎯,🪀,🪁,🎱,🔮,🪄,🧿,🎮,🕹️,🎰,🎲,🧩,🧸,🪆,🃏,🀄,🎴,🎭,🖼️,🎨,🧵,🪡,🧶,🪢,🚗,🚕,🚙,🚌,🚎,🏎️,🚓,🚑,🚒,🚐,🛻,🚚,🚛,🚜,🏍️,🛵,🚲,🛺,🚔,🚍,🚘,🚖,🚡,🚠,🚟,🚃,🚋,🚞,🚝,🚄,🚅,🚈,🚂,🚆,🚇,🚊,🚉,🚁,🛩️,✈️,🛫,🛬,🚀,🛰️,🛸,⛵,🚤,🛥️,🛳️,⛴️,🚢,⚓"
+        }
+    };
 
-  // Yuna specific (Cute & Dolls)
-  { id: 'd1', name: 'Teddy Cub', price: 50, emoji: '🧸', type: 'yuna' },
-  { id: 'd2', name: 'Kitty Doll', price: 50, emoji: '🐱', type: 'yuna' },
-  { id: 'd3', name: 'Magic Wand', price: 80, emoji: '🪄', type: 'yuna' },
-  { id: 'd4', name: 'Picnic Basket', price: 40, emoji: '🧺', type: 'yuna' },
-  { id: 'd5', name: 'Balloon Gift', price: 30, emoji: '🎈', type: 'yuna' },
-  { id: 'd6', name: 'Pretty Dress', price: 60, emoji: '👗', type: 'yuna' },
-  { id: 'd7', name: 'Unicorn', price: 100, emoji: '🦄', type: 'yuna' },
-  { id: 'd8', name: 'Pink Ribbon', price: 30, emoji: '🎀', type: 'yuna' },
-  { id: 'd9', name: 'Crown', price: 90, emoji: '👑', type: 'yuna' },
-  { id: 'd10', name: 'Gem Ring', price: 70, emoji: '💍', type: 'yuna' },
-  { id: 'd11', name: 'Perfume', price: 60, emoji: '🧴', type: 'yuna' },
-  { id: 'd12', name: 'Handbag', price: 50, emoji: '👜', type: 'yuna' },
-  { id: 'd13', name: 'High Heels', price: 60, emoji: '👠', type: 'yuna' },
-  { id: 'd14', name: 'Lipstick', price: 40, emoji: '💄', type: 'yuna' },
-  { id: 'd15', name: 'Bouquet', price: 50, emoji: '💐', type: 'yuna' },
+    let allItems = [];
+    let idCounter = 1;
 
-  // Common / Furniture (For Room Decoration)
-  { id: 'f1', name: 'Bed', price: 150, emoji: '🛏️', type: 'common' },
-  { id: 'f2', name: 'Sofa', price: 120, emoji: '🛋️', type: 'common' },
-  { id: 'f3', name: 'TV', price: 200, emoji: '📺', type: 'common' },
-  { id: 'f4', name: 'Lamp', price: 40, emoji: '💡', type: 'common' },
-  { id: 'f5', name: 'Plant', price: 40, emoji: '🪴', type: 'common' },
-  { id: 'f6', name: 'Clock', price: 50, emoji: '⏰', type: 'common' },
-  { id: 'f7', name: 'Computer', price: 180, emoji: '💻', type: 'common' },
-  { id: 'f8', name: 'Books', price: 30, emoji: '📚', type: 'common' },
-  { id: 'f9', name: 'Painting', price: 80, emoji: '🖼️', type: 'common' },
-  { id: 'f10', name: 'Toilet', price: 100, emoji: '🚽', type: 'common' },
-  { id: 'f11', name: 'Bath', price: 120, emoji: '🛁', type: 'common' },
-  { id: 'f12', name: 'Table', price: 80, emoji: '🪑', type: 'common' },
-  { id: 'f13', name: 'Radio', price: 60, emoji: '📻', type: 'common' },
-  { id: 'f14', name: 'Fan', price: 50, emoji: '💨', type: 'common' },
-  { id: 'f15', name: 'Camera', price: 150, emoji: '📷', type: 'common' },
-  { id: 'f16', name: 'Guitar', price: 120, emoji: '🎸', type: 'common' },
-  { id: 'f17', name: 'Bike', price: 100, emoji: '🚲', type: 'common' },
-  { id: 'f18', name: 'Phone', price: 150, emoji: '📱', type: 'common' },
-  { id: 'f19', name: 'Cactus', price: 40, emoji: '🌵', type: 'common' },
-  { id: 'f20', name: 'Treasure', price: 300, emoji: '💎', type: 'common' },
-];
+    Object.entries(categories).forEach(([catKey, catData]) => {
+        const emojis = catData.items.split(',').map(e => e.trim()).filter(e => e);
+        emojis.forEach(emoji => {
+            allItems.push({
+                id: `${catKey[0]}${idCounter++}`,
+                name: `${catKey} Item`, // 簡化名稱，實作上可建立對應表
+                price: catData.basePrice + Math.floor(Math.random() * 50),
+                emoji: emoji,
+                type: catKey // 用於過濾
+            });
+        });
+    });
+
+    return allItems;
+};
+
+const SHOP_ITEMS = generateShopItems();
 
 // --- 3. 設定檔 ---
 const PROFILES = {
@@ -721,15 +714,17 @@ const App = () => {
     return saved ? JSON.parse(saved) : { luca: {}, yuna: {} };
   });
 
-  // [New] State for Random Class Session
   const [classSession, setClassSession] = useState({
-    words: [], // 26 words for the session
+    words: [],
     currentIndex: 0,
     quizMode: false,
-    quizQueue: [], // 5 questions
+    quizQueue: [], 
     quizIndex: 0,
     quizScore: 0
   });
+
+  // Shop Category State
+  const [shopCategory, setShopCategory] = useState('all');
 
   useEffect(() => {
     localStorage.setItem('happyAbcProgress', JSON.stringify(masteredWords));
@@ -818,7 +813,7 @@ const App = () => {
       }
       setStars(prev => ({ ...prev, [user]: prev[user] - item.price }));
       setInventory(prev => ({ ...prev, [user]: [...prev[user], item.id] }));
-      speak(`Bought ${item.name}!`, 'en-US');
+      speak(`Bought it!`, 'en-US');
     } else {
       speak("Need more bells!", 'en-US');
     }
@@ -959,30 +954,26 @@ const App = () => {
       }
   };
 
-  // --- [New Logic] Random Class Generator ---
+  // --- [Fixed] Random Class & Quiz ---
   const startRandomClass = () => {
       const profile = PROFILES[user];
       const userHistory = learningHistory[user] || {};
       const learnedWordsList = Object.values(userHistory).flat();
       let classWords = [];
 
-      // Pick one word from each letter
       ALPHABET.forEach(letter => {
           const letterWords = RAW_VOCAB[letter] || [];
           const validWords = letterWords.filter(w => w.l <= profile.levelLimit);
           
           if (validWords.length > 0) {
-              // Prioritize unlearned words
               const unlearned = validWords.filter(w => !learnedWordsList.includes(w.t));
               let picked;
               if (unlearned.length > 0) {
                   picked = unlearned[Math.floor(Math.random() * unlearned.length)];
-                  // Add to history now (mark as seen)
                   const seenForLetter = userHistory[letter] || [];
                   const newHistory = { ...userHistory, [letter]: [...seenForLetter, picked.t] };
                   setLearningHistory(prev => ({...prev, [user]: newHistory}));
               } else {
-                  // If all learned, pick random from valid
                   picked = validWords[Math.floor(Math.random() * validWords.length)];
               }
               classWords.push(picked);
@@ -999,25 +990,20 @@ const App = () => {
       });
       setView('class-learning');
       
-      // Auto play first word
       if(classWords.length > 0) {
           setTimeout(() => playWordSound(classWords[0]), 500);
       }
   };
 
-  // --- [New Logic] Start Post-Class Quiz ---
   const startClassQuiz = () => {
-      // Generate 5 questions from the 26 words
       const quizPool = [...classSession.words].sort(() => 0.5 - Math.random()).slice(0, 5);
       const queue = quizPool.map(word => {
-          // Randomly assign a game type
           const types = ['listen', 'spell', 'fill'];
           const type = types[Math.floor(Math.random() * types.length)];
           
-          // Generate options/state for this question (similar to initGame)
           let options = [];
           let spelling = [];
-          const allPool = classSession.words; // Options come from the class words too
+          const allPool = classSession.words;
 
           if (type === 'listen') {
               const count = user === 'luca' ? 3 : 4;
@@ -1054,7 +1040,8 @@ const App = () => {
       setClassSession(prev => ({ ...prev, quizMode: true, quizQueue: queue, quizIndex: 0, quizScore: 0 }));
       speak("Quiz Time!", 'en-US');
       
-      // Speak first question
+      setView('class-quiz'); // <--- [FIXED] This line was missing!
+
       const firstQ = queue[0];
       setTimeout(() => {
           if (firstQ.type === 'listen') speak(firstQ.q.t, 'en-US');
@@ -1065,9 +1052,6 @@ const App = () => {
 
   const handleClassQuizAnswer = (answerOrChar) => {
       const currentQ = classSession.quizQueue[classSession.quizIndex];
-      // Logic mirrors checkAnswer/handleSpelling but updates quiz queue state locally
-      // Simplified for brevity: if correct, move next. if wrong, show error.
-      
       if (currentQ.isCorrect || currentQ.showAnswer) return;
 
       let isCorrect = false;
@@ -1075,17 +1059,14 @@ const App = () => {
       if (currentQ.type === 'listen' || currentQ.type === 'fill') {
           if (answerOrChar.t === currentQ.q.t) isCorrect = true;
       } else if (currentQ.type === 'spell') {
-          // Spell logic handling (simplified for quiz flow)
           if (user === 'luca') {
               if (answerOrChar === currentQ.q.t[0].toUpperCase()) isCorrect = true;
               else speak(answerOrChar.toLowerCase(), 'en-US');
           } else {
-              // Yuna spelling logic
               const newSpelling = [...currentQ.spelling];
               const firstEmpty = newSpelling.findIndex(c => c === '');
               if (firstEmpty !== -1) {
                   newSpelling[firstEmpty] = answerOrChar;
-                  // Update local state queue
                   const newQueue = [...classSession.quizQueue];
                   newQueue[classSession.quizIndex].spelling = newSpelling;
                   setClassSession(prev => ({...prev, quizQueue: newQueue}));
@@ -1096,7 +1077,6 @@ const App = () => {
                           speak("Try again", 'en-US');
                           setTimeout(() => {
                               const resetQueue = [...classSession.quizQueue];
-                              // Reset only filled chars not hints
                               const target = currentQ.q.t.toUpperCase();
                               resetQueue[classSession.quizIndex].spelling = resetQueue[classSession.quizIndex].spelling.map((c, i) => c === target[i] ? c : '');
                               setClassSession(prev => ({...prev, quizQueue: resetQueue}));
@@ -1116,7 +1096,6 @@ const App = () => {
           const newQueue = [...classSession.quizQueue];
           newQueue[classSession.quizIndex].isCorrect = true;
           
-          // Add mastery if needed
           if (!masteredWords[user].includes(currentQ.q.t)) {
               setMasteredWords(prev => ({ ...prev, [user]: [...prev[user], currentQ.q.t] }));
           }
@@ -1131,21 +1110,18 @@ const App = () => {
                   if (nextQ.type === 'listen' || nextQ.type === 'spell') speak(nextQ.q.t, 'en-US');
                   else if (nextQ.type === 'fill' && user === 'luca') speak(nextQ.q.s.replace('___', nextQ.q.t), 'en-US');
               } else {
-                  // Quiz Over
                   setView('class-summary');
-                  const bonus = (classSession.quizScore + 1) * 5; // Calculate bonus
+                  const bonus = (classSession.quizScore + 1) * 10;
                   setStars(prev => ({...prev, [user]: prev[user] + bonus}));
-                  speak(`Class finished! You got ${classSession.quizScore + 1} points!`, 'en-US');
+                  speak(`Class finished! You got ${bonus} bells!`, 'en-US');
               }
           }, 1000);
       } else {
-          // Wrong answer
           const newQueue = [...classSession.quizQueue];
           newQueue[classSession.quizIndex].mistakes += 1;
           if (newQueue[classSession.quizIndex].mistakes >= 2) {
               newQueue[classSession.quizIndex].showAnswer = true;
               speak(`The answer is ${currentQ.q.t}`, 'en-US');
-              // Move to next after delay
               setTimeout(() => {
                   if (classSession.quizIndex < 4) {
                       const nextIdx = classSession.quizIndex + 1;
@@ -1154,7 +1130,7 @@ const App = () => {
                       if (nextQ.type === 'listen' || nextQ.type === 'spell') speak(nextQ.q.t, 'en-US');
                   } else {
                       setView('class-summary');
-                      const bonus = classSession.quizScore * 5;
+                      const bonus = classSession.quizScore * 10;
                       setStars(prev => ({...prev, [user]: prev[user] + bonus}));
                   }
               }, 2000);
@@ -1248,7 +1224,7 @@ const App = () => {
     </header>
   );
 
-  // --- 貼紙簿房間 (Sticker Book Mode) ---
+  // --- Room Component ---
   const RoomScreen = () => {
     const items = roomItems[user] || [];
     const ownedItemIds = inventory[user] || [];
@@ -1375,7 +1351,7 @@ const App = () => {
     );
   };
 
-  // --- [New View] Class Learning Screen ---
+  // --- Class Learning Screen ---
   const ClassLearningScreen = () => {
       const word = classSession.words[classSession.currentIndex];
       
@@ -1390,7 +1366,7 @@ const App = () => {
       };
 
       return (
-          <div className="flex flex-col items-center justify-center h-[80vh] p-4">
+          <div className="flex flex-col items-center justify-center h-[80vh] p-4 animate-slide-up">
               <div className="w-full max-w-sm mb-4">
                   <div className="flex justify-between text-gray-400 font-bold mb-1">
                       <span>Class Progress</span>
@@ -1418,7 +1394,7 @@ const App = () => {
       );
   };
 
-  // --- [New View] Class Quiz Screen ---
+  // --- Class Quiz Screen ---
   const ClassQuizScreen = () => {
       const q = classSession.quizQueue[classSession.quizIndex];
       const isLuca = user === 'luca';
@@ -1503,150 +1479,101 @@ const App = () => {
       );
   };
 
-  // --- Main Game Screen (Existing logic) ---
-  const GameScreen = ({ type }) => {
-    const { q, options, isCorrect, spelling, showAnswer, mistakes } = gameState;
-    const isSpell = type === 'spell';
-    const isFill = type === 'fill';
-    const isLuca = user === 'luca';
-
-    if (showAnswer) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 max-w-lg mx-auto animate-fade-in">
-                <div className="bg-gray-800 p-8 rounded-[3rem] text-center shadow-2xl border-8 border-gray-600 relative overflow-hidden w-full">
-                    <Ghost className="mx-auto text-white mb-4 animate-bounce" size={80} />
-                    <h2 className="text-3xl font-black text-white mb-2">Oh no!</h2>
-                    <p className="text-gray-300 mb-6">The answer is:</p>
-                    <div className="bg-white text-gray-800 text-4xl font-black py-4 px-8 rounded-2xl mb-8 shadow-inner">
-                        {q.t}
-                    </div>
-                    <button onClick={() => initGame(type)} className="w-full bg-[#55C1DE] text-white py-4 rounded-full font-black text-xl shadow-lg hover:brightness-110">
-                        Try Next One ➡️
-                    </button>
+  const LearnScreen = () => (
+    <div className="p-4 pb-24 max-w-xl mx-auto animate-slide-up">
+       <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-3xl shadow-sm">
+          <h2 className="text-6xl font-black text-[#78B159]">{currentLetter}</h2>
+          <div className="flex gap-2">
+             <button onClick={() => loadSmartWords(currentLetter)} className="p-3 bg-[#F0F0F0] rounded-full hover:bg-[#E0E0E0]"><RefreshCw size={24} className="text-gray-500"/></button>
+             <button onClick={() => setView('home')} className="p-3 bg-[#F0F0F0] rounded-full hover:bg-[#E0E0E0]"><Home size={24} className="text-gray-500"/></button>
+          </div>
+       </div>
+       <div className="grid gap-4">
+          {sessionWords.map((word, i) => (
+             <div key={i} onClick={() => playWordSound(word)} className="bg-white rounded-[2rem] p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:scale-[1.02] transition-transform border-2 border-transparent hover:border-[#55C1DE]">
+                <div className="w-24 h-24 bg-[#FDF6E3] rounded-2xl flex items-center justify-center text-6xl shadow-inner">{word.e}</div>
+                <div className="flex-1">
+                   <div className="flex items-baseline gap-2">
+                      <ZhuyinWord text={word.tr} bopomofo={word.b}/>
+                   </div>
+                   <div className="text-2xl font-black text-gray-800 mb-2">{word.t}</div>
+                   
+                   <button 
+                      onClick={(e) => { e.stopPropagation(); playSentence(word); }}
+                      className="mt-1 w-full flex items-center gap-2 text-sm font-bold text-[#55C1DE] bg-[#E0F7FA] px-4 py-3 rounded-xl"
+                   >
+                      <Volume2 size={16}/> {word.s}
+                   </button>
                 </div>
-            </div>
-        );
-    }
+             </div>
+          ))}
+       </div>
+    </div>
+  );
+
+  const ShopScreen = () => {
+    const categories = [
+        { id: 'all', name: 'All', icon: <ShoppingBag size={14}/> },
+        { id: 'furniture', name: 'Furniture', icon: <Armchair size={14}/> },
+        { id: 'nature', name: 'Nature', icon: <Trees size={14}/> },
+        { id: 'animals', name: 'Animals', icon: <Dog size={14}/> },
+        { id: 'food', name: 'Food', icon: <Utensils size={14}/> },
+        { id: 'toys', name: 'Toys', icon: <Gamepad2 size={14}/> },
+    ];
+
+    const filteredItems = shopCategory === 'all' 
+        ? SHOP_ITEMS 
+        : SHOP_ITEMS.filter(item => item.type === shopCategory);
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 max-w-lg mx-auto">
-         <div className="mb-8 text-center w-full animate-fade-in">
-            <div className="flex justify-center gap-2 mb-4">
-                {[...Array(3)].map((_, i) => (
-                    <div key={i} className={`w-3 h-3 rounded-full ${i < mistakes ? 'bg-red-500' : 'bg-gray-200'}`}></div>
-                ))}
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] shadow-[6px_6px_0px_0px_rgba(0,0,0,0.05)] relative mb-6 border-4 border-[#F0F0F0]">
-               {type === 'listen' && (
-                  <button onClick={() => speak(q.t, 'en-US')} className="p-6 rounded-full bg-[#E0F2F1] text-[#009688] hover:scale-110 transition-transform">
-                    <Volume2 size={64}/>
-                  </button>
-               )}
-               {isSpell && (
-                  <div className="flex flex-col items-center">
-                     <div className="text-8xl mb-4">{q.e}</div>
-                     <div className="flex gap-2 justify-center flex-wrap">
-                        {isLuca ? (
-                           <div className="flex items-center gap-2 bg-[#FDF6E3] px-6 py-2 rounded-xl">
-                              <span className={`text-4xl font-black border-b-4 min-w-[40px] text-center ${isCorrect ? 'text-[#78B159] border-[#78B159]' : 'text-[#55C1DE] border-[#55C1DE]'}`}>
-                                 {isCorrect ? q.t[0] : "?"}
-                              </span>
-                              <span className="text-4xl font-bold text-gray-300">{q.t.slice(1)}</span>
-                           </div>
-                        ) : (
-                           q.t.split('').map((char, i) => {
-                              const filled = spelling[i];
-                              return (
-                                <div key={i} className={`w-12 h-14 border-b-4 flex items-center justify-center text-3xl font-bold rounded-lg mx-0.5
-                                    ${filled ? 'bg-white text-gray-800 border-gray-300' : 'bg-black/5 border-dashed border-gray-400'}
-                                `}>
-                                    {filled}
-                                </div>
-                              );
-                           })
-                        )}
-                     </div>
-                  </div>
-               )}
-               {isFill && (
-                  <>
-                     <div className="mb-4 flex justify-center">
-                        {isLuca ? (
-                           <button onClick={() => speak(q.s.replace('___', q.t), 'en-US')} className="bg-[#E0F2F1] p-4 rounded-full text-[#009688]">
-                              <Volume2 size={48} />
-                           </button>
-                        ) : (
-                           <div className="text-6xl animate-bounce">❓</div>
-                        )}
-                     </div>
-                     <div className="text-2xl font-black text-gray-600 leading-relaxed">
-                        {q.s.split('___')[0]}
-                        <span className={`inline-block border-b-4 mx-1 min-w-[80px] text-center ${isCorrect ? 'text-[#78B159] border-[#78B159]' : 'text-[#55C1DE] border-[#55C1DE]'}`}>
-                           {isCorrect ? q.t : "___"}
-                        </span>
-                        {q.s.split('___')[1]}
-                     </div>
-                  </>
-               )}
-            </div>
-         </div>
+    <div className="p-4 pb-24">
+       <div className="bg-[#F4E04D] p-6 rounded-[2rem] text-[#8B4513] flex items-center justify-between shadow-lg mb-6 border-4 border-white relative overflow-hidden">
+          <div className="relative z-10">
+             <h2 className="font-black text-xl opacity-80 uppercase tracking-wider">Pocket Bells</h2>
+             <div className="text-5xl font-black flex items-center gap-2 mt-1">
+                💰 {stars[user]}
+             </div>
+          </div>
+          <div className="absolute right-0 top-0 bottom-0 w-24 bg-[#E6C619] opacity-20 transform skew-x-12"></div>
+       </div>
 
-         <div className="w-full">
-            {!isSpell && (
-               <div className="grid grid-cols-2 gap-4">
-                  {options.map((opt, i) => (
-                     <button 
-                        key={i} 
-                        onClick={() => checkAnswer(opt, type)}
-                        className="bg-white p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] border-2 border-transparent hover:border-[#78B159] active:translate-y-1 transition-all flex flex-col items-center justify-center min-h-[120px]"
-                     >
-                        {type === 'listen' && <span className="text-6xl">{opt.e}</span>}
-                        {type === 'fill' && (
-                           isLuca ? <span className="text-6xl">{opt.e}</span> : <span className="text-2xl font-black text-gray-600">{opt.t}</span>
-                        )}
-                     </button>
-                  ))}
-               </div>
-            )}
-            {isSpell && (
-               <div className="flex flex-wrap gap-3 justify-center">
-                  {options.map((char, i) => (
-                     <button 
-                        key={i}
-                        onClick={() => handleSpelling(char)}
-                        className="w-16 h-16 bg-white rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] border-b-4 border-[#E5E7EB] font-black text-3xl text-gray-600 active:border-b-0 active:translate-y-1 hover:text-[#78B159] transition-all"
-                     >
-                        {char}
-                     </button>
-                  ))}
-               </div>
-            )}
-         </div>
+       {/* Category Tabs */}
+       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-2">
+           {categories.map(cat => (
+               <button 
+                key={cat.id} 
+                onClick={() => setShopCategory(cat.id)}
+                className={`flex items-center gap-1 px-4 py-2 rounded-full font-black text-sm whitespace-nowrap transition-colors
+                    ${shopCategory === cat.id ? 'bg-[#55C1DE] text-white shadow-md' : 'bg-white text-gray-400 border border-gray-200'}
+                `}
+               >
+                   {cat.icon} {cat.name}
+               </button>
+           ))}
+       </div>
 
-         {isCorrect && (
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-pop-up">
-               <div className="bg-[#FDF6E3] p-8 rounded-[3rem] text-center border-8 border-white shadow-2xl max-w-sm w-full relative overflow-hidden">
-                  <div className="text-8xl mb-4 animate-bounce">{q.e}</div>
-                  <h2 className="text-4xl font-black text-[#78B159] mb-2">{q.t}</h2>
-                  <p className="text-gray-400 font-bold mb-8">Awesome!</p>
-                  <div className="flex justify-center gap-4 mb-6">
-                     {type === 'fill' ? (
-                        <button onClick={() => speakBilingual(q.s.replace('___', q.t), q.st)} className="p-4 rounded-full bg-[#E0F2F1] text-[#009688] animate-pulse shadow-md">
-                           <Volume2 size={32}/>
-                        </button>
-                     ) : (
-                        <button onClick={() => speakBilingual(q.t, q.tr)} className="p-4 rounded-full bg-[#E0F2F1] text-[#009688] animate-pulse shadow-md">
-                           <Volume2 size={32}/>
-                        </button>
-                     )}
-                  </div>
-                  <button onClick={() => initGame(type)} className="w-full bg-[#55C1DE] text-white py-4 rounded-full font-black text-xl shadow-lg hover:scale-105 transition-transform">
-                     Next!
-                  </button>
-               </div>
-            </div>
-         )}
-      </div>
+       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+          {filteredItems.map(item => {
+             const owned = inventory[user].includes(item.id);
+             const canAfford = stars[user] >= item.price;
+             return (
+                <div key={item.id} className="bg-white p-4 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] flex flex-col items-center relative overflow-hidden">
+                   <div className="text-6xl mb-2">{item.emoji}</div>
+                   <div className="font-bold text-gray-700 text-sm truncate w-full text-center">{item.name}</div>
+                   {owned ? (
+                      <div className="mt-2 bg-[#E8F5E9] text-[#2E7D32] w-full py-1 rounded-full font-bold text-xs flex items-center justify-center gap-1">
+                         Owned
+                      </div>
+                   ) : (
+                      <button onClick={() => buyItem(item)} disabled={!canAfford} className={`w-full mt-2 py-2 rounded-xl font-bold text-xs ${canAfford ? 'bg-[#55C1DE] text-white hover:bg-[#4DB6D3]' : 'bg-gray-200 text-gray-400'}`}>
+                         {item.price} Bells
+                      </button>
+                   )}
+                </div>
+             );
+          })}
+       </div>
+    </div>
     );
   };
 
@@ -1686,7 +1613,7 @@ const App = () => {
                 );
               })()}
 
-              {/* 🎒 [NEW] Random Class Button */}
+              {/* 🎒 Random Class Button */}
               <button onClick={startRandomClass} className="w-full bg-[#9C27B0] text-white py-4 rounded-[2rem] shadow-md flex items-center justify-center gap-3 hover:bg-[#8E24AA] transition-transform active:scale-95 border-4 border-[#BA68C8]">
                   <GraduationCap size={32} />
                   <div className="text-left">
@@ -1767,4 +1694,5 @@ const App = () => {
     </div>
   );
 };
+
 export default App;

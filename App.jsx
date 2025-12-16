@@ -1552,7 +1552,179 @@ const App = () => {
     </div>
     );
   };
+// --- 補上的 A-Z 學習畫面 ---
+  const LearnScreen = () => {
+    return (
+      <div className="flex flex-col items-center pt-4 pb-24 animate-fade-in">
+        <div className="w-full flex justify-between items-center mb-6">
+           <h2 className="text-4xl font-black text-[#78B159] drop-shadow-sm">Letter {currentLetter}</h2>
+           <button onClick={() => setView('home')} className="bg-gray-200 p-2 rounded-full text-gray-500 font-bold hover:bg-gray-300">Close</button>
+        </div>
 
+        <div className="grid gap-6 w-full">
+           {sessionWords.length === 0 ? (
+             <div className="text-center text-gray-400 py-10 font-bold">All words learned for today!</div>
+           ) : (
+             sessionWords.map((word, idx) => (
+               <div key={idx} onClick={() => playWordSound(word)} className="bg-white p-6 rounded-[2rem] shadow-sm border-4 border-transparent hover:border-[#55C1DE] transition-all cursor-pointer relative group active:scale-95">
+                  <div className="flex items-center gap-6">
+                     <div className="text-7xl bg-gray-50 rounded-2xl w-24 h-24 flex items-center justify-center shadow-inner">
+                        {word.e}
+                     </div>
+                     <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                           <h3 className="text-3xl font-black text-gray-800">{word.t}</h3>
+                           <Volume2 size={20} className="text-[#55C1DE] opacity-50 group-hover:opacity-100"/>
+                        </div>
+                        <div className="mb-2">
+                            <ZhuyinWord text={word.tr} bopomofo={word.b} />
+                        </div>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); playSentence(word); }}
+                          className="text-sm font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full hover:bg-[#55C1DE] hover:text-white transition-colors"
+                        >
+                          "{word.s}"
+                        </button>
+                     </div>
+                  </div>
+               </div>
+             ))
+           )}
+        </div>
+        
+        <div className="mt-8 text-center text-gray-400 font-bold text-sm">
+           Tap cards to listen • Collect stars to buy items!
+        </div>
+      </div>
+    );
+  };
+
+  // --- 補上的遊戲畫面 (Listen, Spell, Fill-in) ---
+  const GameScreen = ({ type }) => {
+    const { q, options, spelling, isCorrect, showAnswer } = gameState;
+    const isLuca = user === 'luca';
+
+    if (!q) return <div className="p-10 text-center font-bold text-gray-400">Loading Game...</div>;
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] animate-slide-up">
+         {/* 題目顯示區 */}
+         <div className="bg-white p-8 rounded-[3rem] shadow-sm border-8 border-[#F0F0F0] mb-8 w-full relative">
+            {/* 標籤 */}
+            <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-[#F4E04D] text-[#8B4513] px-6 py-2 rounded-full font-black uppercase tracking-widest border-4 border-white shadow-sm">
+                {type}
+            </div>
+
+            {/* Listen 模式顯示 */}
+            {type === 'listen' && (
+                <div className="flex flex-col items-center py-4">
+                    <button onClick={() => speak(q.t, 'en-US')} className="w-24 h-24 bg-[#E1F5FE] rounded-full flex items-center justify-center text-[#0288D1] shadow-inner active:scale-95 transition-transform mb-4">
+                        <Volume2 size={48} />
+                    </button>
+                    <div className="text-gray-400 font-bold">Tap to listen</div>
+                </div>
+            )}
+
+            {/* Spell 模式顯示 */}
+            {type === 'spell' && (
+                <div className="flex flex-col items-center">
+                    <div className="text-8xl mb-6 filter drop-shadow-md">{q.e}</div>
+                    
+                    {/* Luca 模式 (首字填空) */}
+                    {isLuca && (
+                        <div className="flex items-center gap-2 bg-[#FFF3E0] px-6 py-3 rounded-2xl border-2 border-[#FFE0B2]">
+                             <span className={`text-5xl font-black w-12 text-center border-b-4 ${isCorrect ? 'text-[#78B159] border-[#78B159]' : 'text-[#FF9800] border-[#FF9800]'}`}>
+                                {isCorrect ? q.t[0] : '?'}
+                             </span>
+                             <span className="text-5xl font-black text-gray-300 tracking-wide">{q.t.slice(1)}</span>
+                        </div>
+                    )}
+
+                    {/* Yuna 模式 (完整拼字) */}
+                    {!isLuca && (
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {spelling.map((char, i) => (
+                                <div key={i} className={`w-12 h-14 flex items-center justify-center text-3xl font-black rounded-lg border-b-4 ${char ? 'bg-white shadow-sm border-gray-200' : 'bg-gray-100 border-gray-300'}`}>
+                                    {char}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Fill-in 模式顯示 */}
+            {type === 'fill' && (
+                <div className="text-center py-4">
+                    <div className="mb-4">
+                         {isLuca ? (
+                             <button onClick={() => speak(q.s.replace('___', q.t), 'en-US')} className="bg-[#E0F2F1] p-4 rounded-full text-[#009688]"><Volume2 size={40}/></button>
+                         ) : (
+                             <div className="text-7xl animate-bounce-slow">{q.e}</div>
+                         )}
+                    </div>
+                    <div className="text-2xl font-black text-gray-600 leading-relaxed px-4">
+                        {q.s.split('___')[0]}
+                        <span className={`inline-block border-b-4 mx-1 min-w-[80px] text-center ${isCorrect ? 'text-[#78B159] border-[#78B159]' : 'text-[#55C1DE] border-[#55C1DE]'}`}>
+                            {isCorrect || showAnswer ? q.t : '___'}
+                        </span>
+                        {q.s.split('___')[1]}
+                    </div>
+                </div>
+            )}
+         </div>
+
+         {/* 選項區 */}
+         <div className="w-full">
+             {/* 拼字鍵盤 */}
+             {type === 'spell' ? (
+                 <div className="flex flex-wrap justify-center gap-3">
+                     {options.map((char, i) => (
+                         <button 
+                            key={i} 
+                            onClick={() => handleSpelling(char)}
+                            disabled={isCorrect}
+                            className="w-16 h-16 bg-white rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] border-2 border-transparent hover:border-[#55C1DE] font-black text-3xl text-gray-600 active:translate-y-1 active:shadow-none transition-all disabled:opacity-50"
+                         >
+                            {char}
+                         </button>
+                     ))}
+                 </div>
+             ) : (
+             /* Listen & Fill 選項 */
+                 <div className="grid grid-cols-2 gap-4">
+                     {options.map((opt, i) => (
+                         <button 
+                            key={i} 
+                            onClick={() => checkAnswer(opt, type)}
+                            disabled={isCorrect}
+                            className={`p-6 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.05)] font-black text-xl flex flex-col items-center justify-center transition-all active:translate-y-1 active:shadow-none min-h-[120px]
+                                ${isCorrect && opt.t === q.t ? 'bg-[#DCF8C6] border-4 border-[#78B159] text-[#33691E]' : 'bg-white text-gray-600 hover:bg-gray-50'}
+                            `}
+                         >
+                            {type === 'listen' ? (
+                                <span className="text-6xl filter drop-shadow-sm">{opt.e}</span>
+                            ) : (
+                                <span>{opt.t}</span>
+                            )}
+                         </button>
+                     ))}
+                 </div>
+             )}
+         </div>
+
+         {/* 答對後的按鈕 */}
+         {(isCorrect || showAnswer) && (
+             <div className="mt-8 animate-pop-up">
+                 <button onClick={() => setView('home')} className="bg-[#78B159] text-white px-10 py-4 rounded-full font-black text-xl shadow-lg hover:bg-[#689F38] flex items-center gap-2">
+                    <Check size={28} /> Done
+                 </button>
+             </div>
+         )}
+      </div>
+    );
+  };
+  
   if (!user) return <CoverScreen />;
 
   return (

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Volume2, Home, Settings, ShoppingBag, 
   Trophy, Ghost, RefreshCw, Star, ArrowLeft, 
-  Trash2, Plus, Move, Leaf, Trees, GraduationCap, PlayCircle, Check
+  Trash2, Plus, Move, Leaf, Trees, GraduationCap
 } from 'lucide-react';
 
 // --- 1. A-Z 資料庫 (完整版) ---
@@ -490,8 +490,8 @@ const RAW_VOCAB = {
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('');
 ALPHABET.forEach(l => {
   if (!RAW_VOCAB[l]) {
-    RAW_VOCAB[l] = Array(10).fill(0).map((_, i) => ({
-      t: `Word${l}${i}`, tr: `單字${l}${i}`, b: 'ㄅㄆㄇ', e: '✨', s: `This is word ${l}${i}.`, st: `這是單字 ${l}${i}。`, l: i < 5 ? 1 : 2
+    RAW_VOCAB[l] = Array(1).fill(0).map((_, i) => ({
+      t: `Word${l}${i}`, tr: `單字${l}${i}`, b: 'ㄅㄆㄇ', e: '✨', s: `This is word ${l}${i}.`, st: `這是單字 ${l}${i}。`, l: 1
     }));
   }
 });
@@ -1044,7 +1044,7 @@ const App = () => {
       setClassSession(prev => ({ ...prev, quizMode: true, quizQueue: queue, quizIndex: 0, quizScore: 0 }));
       speak("Quiz Time!", 'en-US');
       
-      setView('class-quiz'); // Fixed: actually switch view
+      setView('class-quiz');
 
       const firstQ = queue[0];
       setTimeout(() => {
@@ -1484,14 +1484,14 @@ const App = () => {
   };
 
   const ShopScreen = () => {
-    // 修正：使用基礎圖示，避免舊版 lucide-react 崩潰
+    // 安全版本：使用 Emojis 作為分類圖示，避免 Lucide 版本衝突
     const categories = [
-        { id: 'all', name: 'All', icon: <ShoppingBag size={14}/> },
-        { id: 'furniture', name: 'Furniture', icon: <Coffee size={14}/> },
-        { id: 'nature', name: 'Nature', icon: <Trees size={14}/> },
-        { id: 'animals', name: 'Animals', icon: <Smile size={14}/> },
-        { id: 'food', name: 'Food', icon: <Image size={14}/> },
-        { id: 'toys', name: 'Toys', icon: <Gift size={14}/> },
+        { id: 'all', name: 'All', emoji: '🛍️' },
+        { id: 'furniture', name: 'Furniture', emoji: '🪑' },
+        { id: 'nature', name: 'Nature', emoji: '🌿' },
+        { id: 'animals', name: 'Animals', emoji: '🐶' },
+        { id: 'food', name: 'Food', emoji: '🍔' },
+        { id: 'toys', name: 'Toys', emoji: '🚂' },
     ];
 
     const filteredItems = shopCategory === 'all' 
@@ -1520,7 +1520,7 @@ const App = () => {
                     ${shopCategory === cat.id ? 'bg-[#55C1DE] text-white shadow-md' : 'bg-white text-gray-400 border border-gray-200'}
                 `}
                >
-                   {cat.icon} {cat.name}
+                   <span>{cat.emoji}</span> {cat.name}
                </button>
            ))}
        </div>
